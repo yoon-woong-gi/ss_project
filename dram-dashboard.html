@@ -1,0 +1,1445 @@
+<title>DRAM · READ / WRITE / REFRESH</title>
+<style>
+  :root {
+    --void: #04060d;
+    --panel-0: #080c17;
+    --panel-1: #0d1223;
+    --panel-2: #141b34;
+    --panel-3: #1c2547;
+    --rule: rgba(140, 158, 210, 0.10);
+    --rule-2: rgba(140, 158, 210, 0.24);
+    --ink-1: #e8ecf5;
+    --ink-2: #a4adc6;
+    --ink-3: #6b7594;
+    --ink-4: #414968;
+    --ink-5: #2a3050;
+    --read: #22d3ee;
+    --write: #fbbf24;
+    --refresh: #4ade80;
+    --hot: #f0faff;
+    --danger: #f87171;
+
+    --scn: var(--read);
+    --scn-rgb: 34, 211, 238;
+
+    --font-sans: -apple-system, "SF Pro Text", "Segoe UI", "Inter", system-ui, sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Menlo", "Consolas", monospace;
+  }
+
+  [data-scn="write"] {
+    --scn: var(--write);
+    --scn-rgb: 251, 191, 36;
+  }
+  [data-scn="refresh"] {
+    --scn: var(--refresh);
+    --scn-rgb: 74, 222, 128;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--void);
+    color: var(--ink-1);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    min-height: 100vh;
+    overflow-x: hidden;
+    line-height: 1.5;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 900px 600px at 15% 0%, rgba(var(--scn-rgb), 0.09), transparent 60%),
+      radial-gradient(ellipse 700px 500px at 100% 100%, rgba(var(--scn-rgb), 0.06), transparent 60%);
+    pointer-events: none;
+    transition: background 0.7s ease;
+    z-index: 0;
+  }
+
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(140, 158, 210, 0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(140, 158, 210, 0.025) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+    mask-image: radial-gradient(ellipse at center, black 40%, transparent 90%);
+  }
+
+  .app {
+    position: relative;
+    z-index: 1;
+    min-height: 100vh;
+    display: grid;
+    grid-template:
+      "header header" auto
+      "stage side" 1fr
+      "footer footer" auto
+      / 1fr 400px;
+    gap: 14px;
+    padding: 18px;
+    max-width: 1520px;
+    margin: 0 auto;
+  }
+
+  /* HEADER */
+  .hdr {
+    grid-area: header;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 32px;
+    padding: 18px 24px;
+    border: 1px solid var(--rule);
+    background: linear-gradient(180deg, var(--panel-1), var(--panel-0));
+    border-radius: 3px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hdr::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent 5%, var(--scn) 50%, transparent 95%);
+    opacity: 0.7;
+    transition: background 0.7s;
+  }
+
+  .brand { display: flex; align-items: baseline; gap: 14px; }
+  .brand-mark {
+    font-family: var(--font-mono);
+    font-size: 24px;
+    color: var(--scn);
+    transition: color 0.6s;
+    text-shadow: 0 0 24px currentColor;
+  }
+  .brand-name {
+    font-family: var(--font-mono);
+    font-size: 20px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+  }
+  .brand-sub {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--ink-3);
+    text-transform: uppercase;
+    letter-spacing: 0.24em;
+    margin-left: 8px;
+  }
+
+  .tabs { display: flex; gap: 0; }
+  .tab {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.28em;
+    padding: 12px 26px;
+    background: transparent;
+    color: var(--ink-3);
+    border: 1px solid var(--rule);
+    border-right-width: 0;
+    cursor: pointer;
+    transition: color 0.3s, background 0.3s;
+    position: relative;
+  }
+  .tab:last-child { border-right-width: 1px; }
+  .tab:hover { color: var(--ink-1); background: rgba(255, 255, 255, 0.02); }
+  .tab.active {
+    color: var(--scn);
+    background: rgba(var(--scn-rgb), 0.08);
+    box-shadow: inset 0 0 24px rgba(var(--scn-rgb), 0.06);
+    border-color: var(--scn);
+    z-index: 1;
+  }
+  .tab.active + .tab { border-left-color: var(--scn); }
+  .tab.active::after {
+    content: "";
+    position: absolute;
+    bottom: -1px; left: 20%; right: 20%;
+    height: 2px;
+    background: var(--scn);
+    box-shadow: 0 0 12px var(--scn);
+  }
+
+  .hdr-meta {
+    display: flex;
+    gap: 22px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--ink-3);
+    text-transform: uppercase;
+    letter-spacing: 0.22em;
+  }
+  .hdr-meta > div {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    align-items: flex-end;
+  }
+  .hdr-meta strong {
+    color: var(--ink-1);
+    font-weight: 500;
+    font-family: var(--font-mono);
+    letter-spacing: 0.12em;
+    font-size: 12px;
+  }
+
+  /* STAGE */
+  .stage {
+    grid-area: stage;
+    background: linear-gradient(180deg, var(--panel-1), var(--panel-0));
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    padding: 22px 22px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 560px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .stage-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .stage-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--ink-3);
+    text-transform: uppercase;
+    letter-spacing: 0.28em;
+  }
+  .stage-status { display: flex; align-items: center; gap: 10px; }
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--scn);
+    box-shadow: 0 0 14px currentColor;
+    color: var(--scn);
+    animation: pulse 1.8s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.35; transform: scale(0.9); }
+    50% { opacity: 1; transform: scale(1.1); }
+  }
+  #current-op {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--scn);
+    letter-spacing: 0.16em;
+    transition: color 0.5s;
+  }
+
+  .svg-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 0;
+  }
+  .grid-svg {
+    width: 100%;
+    height: 100%;
+    max-height: 520px;
+  }
+
+  .stage-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 22px;
+    padding-top: 12px;
+    border-top: 1px solid var(--rule);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--ink-3);
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+  }
+  .stage-legend span { display: flex; align-items: center; gap: 8px; }
+  .lg-dot { display: inline-block; width: 10px; height: 10px; }
+  .lg-idle { background: var(--ink-5); border: 1px solid var(--ink-4); }
+  .lg-wl { background: var(--scn); box-shadow: 0 0 8px currentColor; color: var(--scn); border-radius: 2px; }
+  .lg-sa {
+    width: 0; height: 0; background: transparent;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 8px solid var(--hot);
+    filter: drop-shadow(0 0 3px var(--hot));
+  }
+  .lg-dq { background: var(--scn); border-radius: 50%; box-shadow: 0 0 6px var(--scn); color: var(--scn); }
+
+  /* SIDE */
+  .side {
+    grid-area: side;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+  }
+  .panel {
+    background: linear-gradient(180deg, var(--panel-1), var(--panel-0));
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    padding: 18px 20px;
+    position: relative;
+  }
+  .panel-eyebrow, .panel-title {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--ink-3);
+    text-transform: uppercase;
+    letter-spacing: 0.28em;
+    margin: 0 0 14px 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .panel-eyebrow .num {
+    color: var(--scn);
+    transition: color 0.5s;
+  }
+
+  .step-panel {
+    flex: 1;
+    min-height: 240px;
+    display: flex;
+    flex-direction: column;
+  }
+  .step-op {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--scn);
+    letter-spacing: 0.18em;
+    margin-bottom: 8px;
+    padding: 4px 10px;
+    display: inline-block;
+    align-self: flex-start;
+    border: 1px solid var(--scn);
+    background: rgba(var(--scn-rgb), 0.08);
+    border-radius: 2px;
+    transition: all 0.4s;
+  }
+  .step-panel h2 {
+    font-family: var(--font-mono);
+    font-size: 22px;
+    font-weight: 300;
+    letter-spacing: -0.005em;
+    margin: 4px 0 14px 0;
+    line-height: 1.15;
+    color: var(--ink-1);
+    text-wrap: balance;
+  }
+  .step-panel p {
+    font-family: var(--font-sans);
+    font-size: 13.5px;
+    line-height: 1.7;
+    color: var(--ink-2);
+    margin: 0;
+    max-width: 44ch;
+  }
+  .step-panel p code {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    color: var(--ink-1);
+    background: rgba(255, 255, 255, 0.04);
+    padding: 1px 5px;
+    border-radius: 2px;
+  }
+
+  .command-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-height: 30px;
+    align-items: center;
+  }
+  .command-list:empty::before {
+    content: "—";
+    color: var(--ink-4);
+    font-family: var(--font-mono);
+    font-size: 11px;
+  }
+  .cmd-chip {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    padding: 5px 11px;
+    border: 1px solid var(--rule-2);
+    border-radius: 2px;
+    color: var(--ink-2);
+    letter-spacing: 0.14em;
+    background: rgba(255, 255, 255, 0.02);
+    transition: all 0.3s;
+  }
+  .cmd-chip.current {
+    color: var(--scn);
+    border-color: var(--scn);
+    background: rgba(var(--scn-rgb), 0.12);
+    box-shadow: 0 0 14px rgba(var(--scn-rgb), 0.3);
+  }
+
+  .timing-list {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 10px 14px;
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    align-items: baseline;
+  }
+  .timing-list dt {
+    color: var(--ink-3);
+    letter-spacing: 0.04em;
+  }
+  .timing-list .desc {
+    color: var(--ink-4);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    text-align: left;
+  }
+  .timing-list dd {
+    margin: 0;
+    color: var(--ink-1);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+  .timing-list .hi dt,
+  .timing-list .hi .desc {
+    color: var(--scn);
+  }
+  .timing-list .hi dd {
+    color: var(--scn);
+    text-shadow: 0 0 8px currentColor;
+  }
+  .timing-list-row {
+    display: contents;
+    transition: color 0.4s;
+  }
+
+  /* FOOTER TRANSPORT */
+  .transport {
+    grid-area: footer;
+    display: grid;
+    grid-template-columns: auto auto auto auto 1fr auto;
+    gap: 10px;
+    align-items: center;
+    padding: 14px 20px;
+    border: 1px solid var(--rule);
+    background: linear-gradient(180deg, var(--panel-0), var(--panel-1));
+    border-radius: 3px;
+  }
+  .ctrl {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    padding: 11px 18px;
+    background: transparent;
+    color: var(--ink-2);
+    border: 1px solid var(--rule-2);
+    cursor: pointer;
+    transition: all 0.2s;
+    border-radius: 2px;
+    min-width: 92px;
+  }
+  .ctrl:hover:not(:disabled) {
+    color: var(--ink-1);
+    border-color: var(--ink-3);
+    background: rgba(255, 255, 255, 0.03);
+  }
+  .ctrl:disabled { opacity: 0.35; cursor: not-allowed; }
+  .ctrl.primary {
+    color: var(--scn);
+    border-color: var(--scn);
+    background: rgba(var(--scn-rgb), 0.1);
+    box-shadow: 0 0 18px rgba(var(--scn-rgb), 0.22);
+    min-width: 110px;
+  }
+  .ctrl.primary:hover:not(:disabled) {
+    background: rgba(var(--scn-rgb), 0.18);
+  }
+
+  .progress {
+    height: 2px;
+    background: var(--ink-5);
+    position: relative;
+    overflow: hidden;
+    margin: 0 12px;
+  }
+  .progress-fill {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    background: linear-gradient(90deg, rgba(var(--scn-rgb), 0.2), var(--scn));
+    width: 0%;
+    transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1), background 0.5s;
+    box-shadow: 0 0 8px var(--scn);
+  }
+  .step-count {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--ink-3);
+    letter-spacing: 0.22em;
+    font-variant-numeric: tabular-nums;
+  }
+  .step-count strong {
+    color: var(--scn);
+    font-weight: 500;
+    transition: color 0.5s;
+  }
+
+  /* SVG cell styles */
+  .cell-rect {
+    fill: var(--panel-2);
+    stroke: var(--ink-5);
+    stroke-width: 1;
+    transition: fill 0.35s, stroke 0.35s, filter 0.35s;
+  }
+  .cell-cap {
+    fill: var(--ink-4);
+    opacity: 0.6;
+    transition: fill 0.35s, opacity 0.35s;
+  }
+  .cell.wl .cell-rect { stroke: var(--scn); stroke-width: 1.25; fill: rgba(var(--scn-rgb), 0.06); }
+  .cell.wl .cell-cap { fill: var(--scn); opacity: 1; }
+
+  .cell.sharing .cell-rect {
+    stroke: var(--scn);
+    animation: cell-share 1.4s ease-in-out infinite;
+  }
+  .cell.sharing .cell-cap {
+    fill: var(--scn);
+    opacity: 1;
+    animation: cap-pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes cell-share {
+    0%, 100% { fill: rgba(var(--scn-rgb), 0.08); }
+    50% { fill: rgba(var(--scn-rgb), 0.22); }
+  }
+  @keyframes cap-pulse {
+    0%, 100% { r: 3; }
+    50% { r: 5; }
+  }
+
+  .cell.sensed .cell-rect { stroke: var(--scn); fill: rgba(var(--scn-rgb), 0.18); }
+  .cell.sensed .cell-cap { fill: var(--hot); opacity: 1; }
+
+  .cell.hit .cell-rect {
+    stroke: var(--hot);
+    fill: rgba(var(--scn-rgb), 0.35);
+    filter: drop-shadow(0 0 6px var(--scn));
+  }
+  .cell.hit .cell-cap { fill: var(--hot); r: 4.5; }
+
+  .cell.writing .cell-rect {
+    animation: cell-write 0.9s ease-in-out infinite;
+    stroke: var(--write);
+  }
+  .cell.writing .cell-cap { fill: var(--write); animation: cap-pulse 0.9s ease-in-out infinite; }
+  @keyframes cell-write {
+    0%, 100% { fill: rgba(251, 191, 36, 0.15); }
+    50% { fill: rgba(251, 191, 36, 0.5); filter: drop-shadow(0 0 8px var(--write)); }
+  }
+
+  .cell.refresh .cell-rect { stroke: var(--refresh); fill: rgba(74, 222, 128, 0.14); }
+  .cell.refresh .cell-cap { fill: var(--refresh); opacity: 1; animation: cap-pulse 1.2s ease-in-out infinite; }
+
+  /* Word lines / bit lines */
+  .wordline {
+    stroke: var(--ink-5);
+    stroke-width: 1;
+    transition: stroke 0.4s, stroke-width 0.4s, filter 0.4s;
+  }
+  .wordline.on {
+    stroke: var(--scn);
+    stroke-width: 1.75;
+    filter: drop-shadow(0 0 4px var(--scn));
+  }
+
+  .bitline {
+    stroke: var(--ink-5);
+    stroke-width: 1;
+    stroke-dasharray: 2 3;
+    transition: stroke 0.4s, filter 0.4s;
+  }
+  .bitline.on {
+    stroke: var(--hot);
+    stroke-dasharray: none;
+    filter: drop-shadow(0 0 3px var(--hot));
+  }
+  .bitline.hit {
+    stroke: var(--scn);
+    stroke-dasharray: none;
+    stroke-width: 1.5;
+    filter: drop-shadow(0 0 5px var(--scn));
+  }
+
+  /* Sense amps */
+  .sa {
+    fill: var(--panel-3);
+    stroke: var(--ink-4);
+    stroke-width: 1;
+    transition: fill 0.35s, stroke 0.35s, filter 0.35s;
+  }
+  .sa.latched {
+    fill: var(--hot);
+    stroke: var(--hot);
+    filter: drop-shadow(0 0 5px var(--hot));
+  }
+  .sa.hit {
+    fill: var(--scn);
+    stroke: var(--scn);
+    filter: drop-shadow(0 0 8px var(--scn));
+  }
+  .sa.writing {
+    fill: var(--write);
+    stroke: var(--write);
+    filter: drop-shadow(0 0 8px var(--write));
+  }
+
+  /* DQ */
+  .dq-bus {
+    stroke: var(--ink-4);
+    stroke-width: 2;
+    transition: stroke 0.35s, filter 0.35s;
+  }
+  .dq-bus.on {
+    stroke: var(--scn);
+    filter: drop-shadow(0 0 6px var(--scn));
+  }
+  .dq-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    fill: var(--ink-3);
+    letter-spacing: 0.2em;
+    transition: fill 0.35s;
+  }
+  .dq-label.on { fill: var(--scn); }
+
+  .dq-particle {
+    fill: var(--scn);
+    opacity: 0;
+    filter: drop-shadow(0 0 4px var(--scn));
+  }
+  .dq-particle.flowing {
+    animation: dq-flow 1.5s linear infinite;
+  }
+  .dq-particle.flowing.write { animation-direction: reverse; fill: var(--write); filter: drop-shadow(0 0 4px var(--write)); }
+  @keyframes dq-flow {
+    0%   { transform: translateX(0); opacity: 0; }
+    15%  { opacity: 1; }
+    85%  { opacity: 1; }
+    100% { transform: translateX(560px); opacity: 0; }
+  }
+
+  /* Decoder boxes */
+  .dec-box {
+    fill: var(--panel-2);
+    stroke: var(--rule-2);
+    stroke-width: 1;
+    transition: stroke 0.35s;
+  }
+  .dec-box.on {
+    stroke: var(--scn);
+    filter: drop-shadow(0 0 4px var(--scn));
+  }
+  .dec-label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    fill: var(--ink-3);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+  .dec-value {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    fill: var(--ink-2);
+    letter-spacing: 0.05em;
+    transition: fill 0.35s;
+  }
+  .dec-value.on { fill: var(--scn); }
+
+  .axis-tick {
+    font-family: var(--font-mono);
+    font-size: 8.5px;
+    fill: var(--ink-4);
+    letter-spacing: 0.05em;
+  }
+  .axis-tick.hi { fill: var(--scn); }
+
+  .frame {
+    fill: none;
+    stroke: var(--rule-2);
+    stroke-width: 1;
+  }
+  .frame-label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    fill: var(--ink-3);
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+  }
+
+  /* Ambient scan sweep on stage */
+  .stage::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, transparent 0%, rgba(var(--scn-rgb), 0.03) 50%, transparent 100%);
+    height: 24px;
+    animation: scan 6s linear infinite;
+    pointer-events: none;
+    z-index: 3;
+    opacity: 0.7;
+    transition: background 0.5s;
+  }
+  @keyframes scan {
+    0%   { transform: translateY(-40px); }
+    100% { transform: translateY(600px); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+    .stage::after, body::before { display: none; }
+  }
+
+  @media (max-width: 1120px) {
+    .app {
+      grid-template:
+        "header" auto
+        "stage" auto
+        "side" auto
+        "footer" auto
+        / 1fr;
+    }
+    .hdr { flex-wrap: wrap; gap: 16px; }
+    .hdr-meta { display: none; }
+  }
+</style>
+
+<div class="app" data-scn="read">
+  <header class="hdr">
+    <div class="brand">
+      <span class="brand-mark">◐</span>
+      <span class="brand-name">DRAM.OP</span>
+      <span class="brand-sub">1T1C · DDR4 command model</span>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-scenario="read" role="tab">READ</button>
+      <button class="tab" data-scenario="write" role="tab">WRITE</button>
+      <button class="tab" data-scenario="refresh" role="tab">REFRESH</button>
+    </nav>
+    <div class="hdr-meta">
+      <div><span>ARRAY</span><strong>8 ROW × 16 COL</strong></div>
+      <div><span>PROFILE</span><strong>DDR4-3200 · CL16</strong></div>
+    </div>
+  </header>
+
+  <section class="stage">
+    <div class="stage-head">
+      <span class="stage-label">CELL ARRAY / BANK 0</span>
+      <div class="stage-status">
+        <span class="status-dot"></span>
+        <span id="current-op">IDLE</span>
+      </div>
+    </div>
+    <div class="svg-wrap">
+      <svg class="grid-svg" id="svg" viewBox="0 0 900 520" preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
+    <div class="stage-legend">
+      <span><i class="lg-dot lg-idle"></i>Idle cell</span>
+      <span><i class="lg-dot lg-wl"></i>Word line asserted</span>
+      <span><i class="lg-dot lg-sa"></i>Sense amp latched</span>
+      <span><i class="lg-dot lg-dq"></i>DQ / bit-line active</span>
+    </div>
+  </section>
+
+  <aside class="side">
+    <div class="panel step-panel">
+      <div class="panel-eyebrow">
+        <span>STEP</span>
+        <span><span class="num" id="step-num">01</span> / <span id="step-total">07</span></span>
+      </div>
+      <span class="step-op" id="step-op">IDLE</span>
+      <h2 id="step-title">Precharged / Idle</h2>
+      <p id="step-desc"></p>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">COMMAND BUS</div>
+      <div class="command-list" id="command-list"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">TIMING · <span id="timing-profile">DDR4-3200</span></div>
+      <dl class="timing-list" id="timing-list"></dl>
+    </div>
+  </aside>
+
+  <footer class="transport">
+    <button class="ctrl" id="btn-reset">↺ RESET</button>
+    <button class="ctrl" id="btn-prev">◀ PREV</button>
+    <button class="ctrl primary" id="btn-play">▶ PLAY</button>
+    <button class="ctrl" id="btn-next">NEXT ▶</button>
+    <div class="progress"><div class="progress-fill" id="progress-fill"></div></div>
+    <div class="step-count"><strong id="sc-cur">01</strong> / <span id="sc-tot">07</span></div>
+  </footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ---------- Grid geometry ----------
+  const NUM_ROWS = 8;
+  const NUM_COLS = 16;
+  const GRID_X = 132;
+  const GRID_Y = 62;
+  const CELL_W = 34;
+  const CELL_H = 28;
+  const STRIDE_X = 42;
+  const STRIDE_Y = 34;
+  const GRID_W = STRIDE_X * NUM_COLS - (STRIDE_X - CELL_W); // = 42*16-8 = 664
+  const GRID_H = STRIDE_Y * NUM_ROWS - (STRIDE_Y - CELL_H); // = 34*8-6  = 266
+  const SA_Y = GRID_Y + GRID_H + 42;   // sense amp row Y
+  const DQ_Y = SA_Y + 62;              // DQ bus Y
+
+  const cellX = c => GRID_X + c * STRIDE_X;
+  const cellY = r => GRID_Y + r * STRIDE_Y;
+  const cellCX = c => cellX(c) + CELL_W / 2;
+  const cellCY = r => cellY(r) + CELL_H / 2;
+
+  // ---------- Scenarios ----------
+  // Correctness notes:
+  //  - ACT drives one word line; sense amps then latch entire row (row buffer). tRCD covers ACT→col-cmd.
+  //  - Because word line is still on during sense/restore, cells are automatically restored.
+  //    Precharge just closes the row and equalises bit lines to Vdd/2.
+  //  - WRITE requires row to be open; write drivers overpower sense amps, cell is updated
+  //    while word line is still asserted. tWR is needed before PRE.
+  //  - REF uses internal counter (no row address on bus), refreshes 1..N rows per command,
+  //    all banks must be precharged. tREFI 7.8us, tREFW 64ms, tRFC ~350ns typical.
+  const TARGET_ROW = 3;
+  const TARGET_COL = 6;
+
+  const IDLE_STATE = {
+    wordlines: [], bitlines: [], hitCol: null,
+    cellPhase: 'idle', senseAmpPhase: 'idle', dqPhase: 'idle',
+    rowAddr: '—', colAddr: '—',
+    bus: [], highlightTiming: null
+  };
+
+  const scenarios = {
+    read: {
+      label: 'READ',
+      color: 'read',
+      profile: 'DDR4-3200 · CL16',
+      timings: [
+        ['tRCD', '13.75 ns', 'ACT → column cmd', 'tRCD'],
+        ['CL',   '16 cyc',   'RD → first DQ',    'CL'],
+        ['BL',   '8 beats',  'burst length',     null],
+        ['tRAS', '32 ns',    'ACT → PRE min',    'tRAS'],
+        ['tRP',  '13.75 ns', 'PRE → next ACT',   'tRP'],
+      ],
+      steps: [
+        {
+          op: 'IDLE',
+          title: 'Precharged / Idle',
+          desc: 'Bank is in the precharged state — every bit line is held at <code>Vdd/2</code> by the precharge equalisers, and no word line is asserted. The row buffer is empty; no column can be accessed until a row is opened.',
+          state: { ...IDLE_STATE }
+        },
+        {
+          op: 'ACT · row 0x3',
+          title: 'ACT — Row Activate',
+          desc: 'Controller drives <code>ACTIVATE</code> on the command bus with a bank + row address. Word line <code>0x3</code> rises to the boosted voltage <code>Vpp</code>; every access transistor in row 3 turns on.',
+          state: { ...IDLE_STATE, wordlines: [TARGET_ROW], cellPhase: 'wl', rowAddr: '0x3', bus: ['ACT'] }
+        },
+        {
+          op: 'ACT · charge sharing',
+          title: 'Charge Sharing',
+          desc: 'Each cell capacitor (~25 fF) shares its charge with the much larger bit-line capacitance. Every bit line drifts a few tens of millivolts above or below <code>Vdd/2</code> — the direction encodes the stored bit for that column.',
+          state: { ...IDLE_STATE, wordlines: [TARGET_ROW], bitlines: 'all', cellPhase: 'sharing', rowAddr: '0x3', bus: ['ACT'] }
+        },
+        {
+          op: 'SENSE / RESTORE',
+          title: 'Sense & Restore',
+          desc: 'Sense amplifiers detect the differential, latch it, and drive each bit line to full rail (<code>0</code> or <code>Vdd</code>). Because word line 3 is still asserted, the same drive restores full charge into every cell of the row — the row buffer is now valid. Interval from ACT to this point is <code>tRCD</code>.',
+          state: { ...IDLE_STATE, wordlines: [TARGET_ROW], bitlines: 'all', cellPhase: 'sensed', senseAmpPhase: 'latched', rowAddr: '0x3', bus: ['ACT'], highlightTiming: 'tRCD' }
+        },
+        {
+          op: 'RD · col 0x6',
+          title: 'RD — Column Select',
+          desc: 'Controller issues <code>READ</code> with column address <code>0x6</code>. The column decoder selects column 6 from the row buffer; that value is routed to the internal read data path.',
+          state: { ...IDLE_STATE, wordlines: [TARGET_ROW], bitlines: 'all', hitCol: TARGET_COL, cellPhase: 'sensed', senseAmpPhase: 'reading', dqPhase: 'route', rowAddr: '0x3', colAddr: '0x6', bus: ['ACT', 'RD'] }
+        },
+        {
+          op: 'CL · DQ burst',
+          title: 'CAS Latency → DQ Burst',
+          desc: 'After CAS latency (<code>CL</code> clock cycles from the RD command), data appears on the DQ pins. DDR4 bursts <code>BL8</code> — eight beats over four clock cycles, captured on both edges.',
+          state: { ...IDLE_STATE, wordlines: [TARGET_ROW], bitlines: 'all', hitCol: TARGET_COL, cellPhase: 'sensed', senseAmpPhase: 'reading', dqPhase: 'burst', rowAddr: '0x3', colAddr: '0x6', bus: ['ACT', 'RD'], highlightTiming: 'CL' }
+        },
+        {
+          op: 'PRE',
+          title: 'PRE — Precharge',
+          desc: '<code>PRECHARGE</code> closes the row. Word line 3 drops, then the equalisers pull bit lines back to <code>Vdd/2</code>. After <code>tRP</code> the bank is ready for another ACT — to the same or a different row.',
+          state: { ...IDLE_STATE, bus: ['ACT', 'RD', 'PRE'], highlightTiming: 'tRP' }
+        }
+      ]
+    },
+
+    write: {
+      label: 'WRITE',
+      color: 'write',
+      profile: 'DDR4-3200 · CWL14',
+      timings: [
+        ['tRCD', '13.75 ns', 'ACT → column cmd',  'tRCD'],
+        ['CWL',  '14 cyc',   'WR → first data',   'CWL'],
+        ['BL',   '8 beats',  'burst length',      null],
+        ['tWR',  '15 ns',    'last data → PRE',   'tWR'],
+        ['tRP',  '13.75 ns', 'PRE → next ACT',    'tRP'],
+      ],
+      steps: [
+        {
+          op: 'IDLE',
+          title: 'Precharged / Idle',
+          desc: 'Bank precharged. Bit lines at <code>Vdd/2</code>, no word line asserted. Any write must first open the target row — DRAM has no per-cell write path independent of the row buffer.',
+          state: { ...IDLE_STATE }
+        },
+        {
+          op: 'ACT · row 0x3',
+          title: 'ACT — Row Activate',
+          desc: 'Controller issues <code>ACTIVATE</code> with row <code>0x3</code>. Word line 3 rises; every access transistor in the row turns on. Identical to the read path — DRAM does not distinguish read vs. write during activation.',
+          state: { ...IDLE_STATE, wordlines: [TARGET_ROW], cellPhase: 'wl', rowAddr: '0x3', bus: ['ACT'] }
+        },
+        {
+          op: 'ACT · sense / restore',
+          title: 'Row Buffer Populated',
+          desc: 'Charge sharing followed by sense amplification — same physics as a read. The entire row is now latched in the sense amps. Only after this can a column be modified.',
+          state: { ...IDLE_STATE, wordlines: [TARGET_ROW], bitlines: 'all', cellPhase: 'sensed', senseAmpPhase: 'latched', rowAddr: '0x3', bus: ['ACT'], highlightTiming: 'tRCD' }
+        },
+        {
+          op: 'WR · col 0x6',
+          title: 'WR — Write Command',
+          desc: 'Controller issues <code>WRITE</code> with column <code>0x6</code> and drives new data onto DQ. After Write Latency (<code>CWL</code>) the write drivers overpower sense-amp column 6, forcing the new bit into the row buffer.',
+          state: { ...IDLE_STATE, wordlines: [TARGET_ROW], bitlines: 'all', hitCol: TARGET_COL, cellPhase: 'sensed', senseAmpPhase: 'writing', dqPhase: 'incoming', rowAddr: '0x3', colAddr: '0x6', bus: ['ACT', 'WR'], highlightTiming: 'CWL' }
+        },
+        {
+          op: 'CELL WRITE-BACK',
+          title: 'Cell Update',
+          desc: 'Because word line 3 is still asserted, the overwritten sense-amp value flows back through the still-open access transistor and charges (or discharges) the target cell capacitor to its new value.',
+          state: { ...IDLE_STATE, wordlines: [TARGET_ROW], bitlines: 'all', hitCol: TARGET_COL, cellPhase: 'writing', senseAmpPhase: 'writing', dqPhase: 'incoming', rowAddr: '0x3', colAddr: '0x6', bus: ['ACT', 'WR'] }
+        },
+        {
+          op: 'tWR · recovery',
+          title: 'Write Recovery',
+          desc: 'After the last write beat, the DRAM needs <code>tWR</code> (≈15 ns typical) to fully charge the cell before the row can be closed. Issuing PRE too early risks an incomplete write and lost data.',
+          state: { ...IDLE_STATE, wordlines: [TARGET_ROW], bitlines: 'all', hitCol: TARGET_COL, cellPhase: 'sensed', senseAmpPhase: 'latched', rowAddr: '0x3', colAddr: '0x6', bus: ['ACT', 'WR'], highlightTiming: 'tWR' }
+        },
+        {
+          op: 'PRE',
+          title: 'PRE — Precharge',
+          desc: '<code>PRECHARGE</code> closes the row. Word line 3 drops, then bit lines are equalised back to <code>Vdd/2</code>. After <code>tRP</code> the bank is available for another ACT.',
+          state: { ...IDLE_STATE, bus: ['ACT', 'WR', 'PRE'], highlightTiming: 'tRP' }
+        }
+      ]
+    },
+
+    refresh: {
+      label: 'REFRESH',
+      color: 'refresh',
+      profile: 'DDR4 · Auto-Refresh',
+      timings: [
+        ['tREFI', '7.8 μs',  'avg REF interval',   'tREFI'],
+        ['tREFW', '64 ms',   'retention window',   'tREFW'],
+        ['tRFC',  '~350 ns', 'REF cycle time',     'tRFC'],
+        ['REF/W', '8192',    'REFs per window',    null],
+        ['tRP',   '13.75 ns', 'internal PRE',      null],
+      ],
+      steps: [
+        {
+          op: 'IDLE · all banks PRE',
+          title: 'All Banks Precharged',
+          desc: '<code>REF</code> requires every bank to be precharged — nothing may be open. The DRAM maintains an internal refresh counter that names the next row group to refresh; the controller never supplies a row address.',
+          state: { ...IDLE_STATE }
+        },
+        {
+          op: 'tREFI · REF due',
+          title: 'Refresh Interval Elapsed',
+          desc: 'On average every <code>tREFI</code> (7.8 μs at normal temperature) the controller must issue a REF. Cells only hold charge for <code>tREFW</code> ≈ 64 ms — 8192 REFs cover the whole array within that window.',
+          state: { ...IDLE_STATE, highlightTiming: 'tREFI' }
+        },
+        {
+          op: 'REF',
+          title: 'REF — Auto-Refresh Command',
+          desc: 'Controller drives <code>REFRESH</code> on the command bus. No row address accompanies it — the DRAM alone decides which rows to refresh next, using its internal counter.',
+          state: { ...IDLE_STATE, bus: ['REF'] }
+        },
+        {
+          op: 'REF · internal ACT',
+          title: 'Internal Row Activation',
+          desc: 'The DRAM internally asserts the word lines pointed to by its counter. Access transistors turn on and charge sharing begins — a full activation, but driven from within the die rather than by an external ACT.',
+          state: { ...IDLE_STATE, wordlines: [1, 2, 3], cellPhase: 'refresh', rowAddr: '⟳', bus: ['REF'] }
+        },
+        {
+          op: 'REF · sense / restore',
+          title: 'Sense & Restore',
+          desc: 'Sense amps latch the row and drive bit lines to full rail, restoring charge into every cell in the addressed rows. This is the entire purpose of refresh: halting the exponential decay of the storage capacitors before data is lost.',
+          state: { ...IDLE_STATE, wordlines: [1, 2, 3], bitlines: 'all', cellPhase: 'refresh', senseAmpPhase: 'latched', rowAddr: '⟳', bus: ['REF'] }
+        },
+        {
+          op: 'REF · PRE + advance',
+          title: 'Precharge & Counter Advance',
+          desc: 'The DRAM precharges the refreshed rows internally and advances its refresh counter. Many DDR4 devices refresh multiple rows per REF command, amortising the fixed per-command overhead.',
+          state: { ...IDLE_STATE, wordlines: [4, 5, 6], cellPhase: 'refresh', rowAddr: '⟳+', bus: ['REF'] }
+        },
+        {
+          op: 'REF · complete',
+          title: 'tRFC Elapsed',
+          desc: 'After <code>tRFC</code> (≈350 ns for a typical DDR4 die), REF completes and normal commands can resume. The next REF must be issued within <code>tREFI</code>, otherwise retention margin accumulated in the pooling budget is spent — and beyond that, data is lost.',
+          state: { ...IDLE_STATE, bus: ['REF'], highlightTiming: 'tRFC' }
+        }
+      ]
+    }
+  };
+
+  // ---------- State ----------
+  const S = {
+    scenario: 'read',
+    step: 0,
+    playing: false,
+    timer: null
+  };
+
+  // ---------- SVG build ----------
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.getElementById('svg');
+
+  function el(name, attrs) {
+    const e = document.createElementNS(NS, name);
+    if (attrs) for (const k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+
+  const wlEls = [];       // word lines
+  const blEls = [];       // bit lines
+  const cellEls = [];     // cells (indexed [row][col])
+  const saEls = [];       // sense amp per col
+  let dqBusEl, dqLabelEl, dqParticleEl;
+  let rowDecEl, rowDecValue, colDecEl, colDecValue;
+
+  function buildSVG() {
+    svg.innerHTML = '';
+
+    // Ambient frame
+    const gAmb = el('g');
+    gAmb.appendChild(el('rect', {
+      x: GRID_X - 20, y: GRID_Y - 26, width: GRID_W + 40, height: GRID_H + 90,
+      class: 'frame', rx: 2
+    }));
+    // Frame label
+    const fl = el('text', { x: GRID_X - 18, y: GRID_Y - 32, class: 'frame-label' });
+    fl.textContent = 'CELL ARRAY';
+    gAmb.appendChild(fl);
+    svg.appendChild(gAmb);
+
+    // Column axis ticks
+    for (let c = 0; c < NUM_COLS; c++) {
+      if (c % 2 === 0 || c === TARGET_COL) {
+        const t = el('text', {
+          x: cellCX(c), y: GRID_Y - 8,
+          class: 'axis-tick',
+          'text-anchor': 'middle',
+          id: `col-tick-${c}`
+        });
+        t.textContent = c.toString(16).toUpperCase();
+        svg.appendChild(t);
+      }
+    }
+    // Row axis ticks
+    for (let r = 0; r < NUM_ROWS; r++) {
+      const t = el('text', {
+        x: GRID_X - 12, y: cellCY(r) + 3,
+        class: 'axis-tick',
+        'text-anchor': 'end',
+        id: `row-tick-${r}`
+      });
+      t.textContent = r.toString(16).toUpperCase();
+      svg.appendChild(t);
+    }
+
+    // Word lines (behind cells)
+    for (let r = 0; r < NUM_ROWS; r++) {
+      const line = el('line', {
+        x1: GRID_X - 8, y1: cellCY(r),
+        x2: GRID_X + GRID_W + 8, y2: cellCY(r),
+        class: 'wordline'
+      });
+      wlEls.push(line);
+      svg.appendChild(line);
+    }
+
+    // Bit lines (behind cells but in front of word lines)
+    for (let c = 0; c < NUM_COLS; c++) {
+      const line = el('line', {
+        x1: cellCX(c), y1: GRID_Y - 4,
+        x2: cellCX(c), y2: SA_Y - 6,
+        class: 'bitline'
+      });
+      blEls.push(line);
+      svg.appendChild(line);
+    }
+
+    // Cells
+    for (let r = 0; r < NUM_ROWS; r++) {
+      cellEls[r] = [];
+      for (let c = 0; c < NUM_COLS; c++) {
+        const g = el('g', { class: 'cell', transform: `translate(${cellX(c)},${cellY(r)})` });
+        g.appendChild(el('rect', {
+          class: 'cell-rect',
+          x: 0, y: 0, width: CELL_W, height: CELL_H, rx: 1
+        }));
+        // Capacitor dot
+        g.appendChild(el('circle', {
+          class: 'cell-cap',
+          cx: CELL_W / 2, cy: CELL_H / 2, r: 3
+        }));
+        svg.appendChild(g);
+        cellEls[r][c] = g;
+      }
+    }
+
+    // Sense amp box
+    const saBoxY = SA_Y - 4;
+    svg.appendChild(el('rect', {
+      x: GRID_X - 8, y: saBoxY, width: GRID_W + 16, height: 34,
+      class: 'frame', rx: 2
+    }));
+    const saLabel = el('text', { x: GRID_X - 18, y: saBoxY + 20, class: 'frame-label', 'text-anchor': 'end' });
+    saLabel.textContent = 'SENSE AMPS';
+    svg.appendChild(saLabel);
+
+    // Sense amp triangles
+    for (let c = 0; c < NUM_COLS; c++) {
+      const cx = cellCX(c);
+      const y0 = saBoxY + 6;
+      const y1 = saBoxY + 22;
+      const tri = el('polygon', {
+        class: 'sa',
+        points: `${cx - 7},${y0} ${cx + 7},${y0} ${cx},${y1}`
+      });
+      saEls.push(tri);
+      svg.appendChild(tri);
+      // Small stem down to DQ area
+      svg.appendChild(el('line', {
+        x1: cx, y1: y1 + 1, x2: cx, y2: DQ_Y - 6,
+        class: 'bitline'
+      }));
+    }
+
+    // DQ bus (horizontal aggregator)
+    dqBusEl = el('line', {
+      x1: GRID_X - 8, y1: DQ_Y, x2: GRID_X + GRID_W + 8, y2: DQ_Y,
+      class: 'dq-bus'
+    });
+    svg.appendChild(dqBusEl);
+    // DQ arrow to right
+    svg.appendChild(el('line', {
+      x1: GRID_X + GRID_W + 8, y1: DQ_Y, x2: GRID_X + GRID_W + 60, y2: DQ_Y,
+      class: 'dq-bus', id: 'dq-out'
+    }));
+    dqLabelEl = el('text', {
+      x: GRID_X + GRID_W + 68, y: DQ_Y + 4, class: 'dq-label'
+    });
+    dqLabelEl.textContent = 'DQ →';
+    svg.appendChild(dqLabelEl);
+
+    // DQ label on left
+    const dqLeft = el('text', {
+      x: GRID_X - 18, y: DQ_Y + 4, class: 'frame-label', 'text-anchor': 'end'
+    });
+    dqLeft.textContent = 'DQ BUS';
+    svg.appendChild(dqLeft);
+
+    // DQ flowing particle (three dots to simulate a burst)
+    for (let i = 0; i < 3; i++) {
+      const p = el('circle', {
+        class: 'dq-particle',
+        cx: GRID_X - 4 + i * 18,
+        cy: DQ_Y, r: 3
+      });
+      p.style.animationDelay = `${i * 0.15}s`;
+      svg.appendChild(p);
+      if (i === 0) dqParticleEl = [];
+      dqParticleEl.push(p);
+    }
+
+    // Row decoder box (left side)
+    const decW = 76, decH = 34;
+    rowDecEl = el('rect', {
+      x: 20, y: GRID_Y + GRID_H / 2 - decH / 2, width: decW, height: decH,
+      class: 'dec-box', rx: 2
+    });
+    svg.appendChild(rowDecEl);
+    const rowDecLabel = el('text', {
+      x: 20 + decW / 2, y: GRID_Y + GRID_H / 2 - 4, class: 'dec-label', 'text-anchor': 'middle'
+    });
+    rowDecLabel.textContent = 'ROW DEC';
+    svg.appendChild(rowDecLabel);
+    rowDecValue = el('text', {
+      x: 20 + decW / 2, y: GRID_Y + GRID_H / 2 + 12, class: 'dec-value', 'text-anchor': 'middle'
+    });
+    rowDecValue.textContent = '—';
+    svg.appendChild(rowDecValue);
+    // Connector line to grid
+    svg.appendChild(el('line', {
+      x1: 20 + decW, y1: GRID_Y + GRID_H / 2,
+      x2: GRID_X - 8, y2: GRID_Y + GRID_H / 2,
+      class: 'wordline', style: 'opacity:0.35'
+    }));
+
+    // Column decoder box (top)
+    colDecEl = el('rect', {
+      x: GRID_X + GRID_W / 2 - 60, y: 10, width: 120, height: 32,
+      class: 'dec-box', rx: 2
+    });
+    svg.appendChild(colDecEl);
+    const colDecLabel = el('text', {
+      x: GRID_X + GRID_W / 2, y: 25, class: 'dec-label', 'text-anchor': 'middle'
+    });
+    colDecLabel.textContent = 'COL DEC';
+    svg.appendChild(colDecLabel);
+    colDecValue = el('text', {
+      x: GRID_X + GRID_W / 2 + 40, y: 25, class: 'dec-value', 'text-anchor': 'start'
+    });
+    colDecValue.textContent = '—';
+    svg.appendChild(colDecValue);
+    // Move col label to fit
+    colDecLabel.setAttribute('x', GRID_X + GRID_W / 2 - 30);
+    colDecLabel.setAttribute('text-anchor', 'start');
+  }
+
+  // ---------- Rendering ----------
+  function classSet(el, cls, on) {
+    if (on) el.classList.add(cls); else el.classList.remove(cls);
+  }
+
+  function render() {
+    const scn = scenarios[S.scenario];
+    const step = scn.steps[S.step];
+    const st = step.state;
+
+    // Root scenario for CSS accent variable
+    document.querySelector('.app').setAttribute('data-scn', S.scenario);
+
+    // Tabs
+    document.querySelectorAll('.tab').forEach(t => {
+      t.classList.toggle('active', t.dataset.scenario === S.scenario);
+    });
+
+    // Header op
+    document.getElementById('current-op').textContent = step.op;
+
+    // Step panel
+    document.getElementById('step-num').textContent = String(S.step + 1).padStart(2, '0');
+    document.getElementById('step-total').textContent = String(scn.steps.length).padStart(2, '0');
+    document.getElementById('step-op').textContent = step.op;
+    document.getElementById('step-title').textContent = step.title;
+    document.getElementById('step-desc').innerHTML = step.desc;
+
+    // Command bus
+    const cbEl = document.getElementById('command-list');
+    cbEl.innerHTML = '';
+    st.bus.forEach((cmd, i) => {
+      const chip = document.createElement('span');
+      chip.className = 'cmd-chip' + (i === st.bus.length - 1 ? ' current' : '');
+      chip.textContent = cmd;
+      cbEl.appendChild(chip);
+    });
+
+    // Timing panel
+    const tp = document.getElementById('timing-list');
+    tp.innerHTML = '';
+    document.getElementById('timing-profile').textContent = scn.profile;
+    scn.timings.forEach(([name, val, desc, key]) => {
+      const isHi = st.highlightTiming === key;
+      const dt = document.createElement('dt');
+      dt.textContent = name;
+      const dd = document.createElement('dd');
+      dd.textContent = val;
+      const d = document.createElement('span');
+      d.className = 'desc';
+      d.textContent = desc;
+      if (isHi) { dt.className = 'hi'; dd.className = 'hi'; d.classList.add('hi'); }
+      const row = document.createElement('div');
+      row.className = 'timing-list-row' + (isHi ? ' hi' : '');
+      // Group into contents
+      tp.appendChild(dt);
+      tp.appendChild(d);
+      tp.appendChild(dd);
+    });
+
+    // Footer counters
+    document.getElementById('sc-cur').textContent = String(S.step + 1).padStart(2, '0');
+    document.getElementById('sc-tot').textContent = String(scn.steps.length).padStart(2, '0');
+    document.getElementById('progress-fill').style.width =
+      `${((S.step + 1) / scn.steps.length) * 100}%`;
+
+    // Buttons
+    document.getElementById('btn-prev').disabled = S.step === 0;
+    document.getElementById('btn-next').disabled = S.step === scn.steps.length - 1;
+    document.getElementById('btn-play').textContent = S.playing ? '❚❚ PAUSE' : '▶ PLAY';
+
+    // Decoder values
+    rowDecValue.textContent = st.rowAddr || '—';
+    colDecValue.textContent = st.colAddr || '—';
+    classSet(rowDecEl, 'on', st.rowAddr && st.rowAddr !== '—');
+    classSet(rowDecValue, 'on', st.rowAddr && st.rowAddr !== '—');
+    classSet(colDecEl, 'on', st.colAddr && st.colAddr !== '—');
+    classSet(colDecValue, 'on', st.colAddr && st.colAddr !== '—');
+
+    // Word lines
+    const wlSet = new Set(st.wordlines);
+    for (let r = 0; r < NUM_ROWS; r++) {
+      classSet(wlEls[r], 'on', wlSet.has(r));
+    }
+
+    // Bit lines
+    const blOn = st.bitlines === 'all';
+    for (let c = 0; c < NUM_COLS; c++) {
+      classSet(blEls[c], 'on', blOn);
+      classSet(blEls[c], 'hit', st.hitCol === c);
+    }
+
+    // Cells
+    for (let r = 0; r < NUM_ROWS; r++) {
+      for (let c = 0; c < NUM_COLS; c++) {
+        const g = cellEls[r][c];
+        g.className.baseVal = 'cell';
+        const rowActive = wlSet.has(r);
+        const hit = st.hitCol === c && rowActive;
+        if (hit && (st.cellPhase === 'writing')) {
+          g.classList.add('writing');
+        } else if (hit && (st.cellPhase === 'sensed' || st.cellPhase === 'sharing')) {
+          g.classList.add('hit');
+        } else if (rowActive) {
+          if (st.cellPhase === 'sharing') g.classList.add('sharing');
+          else if (st.cellPhase === 'sensed') g.classList.add('sensed');
+          else if (st.cellPhase === 'writing') g.classList.add('writing');
+          else if (st.cellPhase === 'refresh') g.classList.add('refresh');
+          else g.classList.add('wl');
+        }
+      }
+    }
+
+    // Sense amps
+    for (let c = 0; c < NUM_COLS; c++) {
+      const sa = saEls[c];
+      sa.className.baseVal = 'sa';
+      if (st.senseAmpPhase === 'writing' && st.hitCol === c) sa.classList.add('writing');
+      else if (st.senseAmpPhase === 'reading' && st.hitCol === c) sa.classList.add('hit');
+      else if (st.senseAmpPhase === 'latched') sa.classList.add('latched');
+      else if (st.senseAmpPhase === 'writing') sa.classList.add('latched');
+      else if (st.senseAmpPhase === 'reading') sa.classList.add('latched');
+    }
+
+    // DQ
+    const dqOn = st.dqPhase && st.dqPhase !== 'idle';
+    classSet(dqBusEl, 'on', dqOn);
+    classSet(document.getElementById('dq-out'), 'on', dqOn);
+    classSet(dqLabelEl, 'on', dqOn);
+    dqParticleEl.forEach(p => {
+      p.classList.remove('flowing', 'write');
+      if (st.dqPhase === 'burst') p.classList.add('flowing');
+      else if (st.dqPhase === 'incoming') {
+        p.classList.add('flowing', 'write');
+        // reset origin for reversed flow (start from right)
+        p.setAttribute('cx', GRID_X + GRID_W - 4 - dqParticleEl.indexOf(p) * 18);
+      } else if (st.dqPhase === 'route') p.classList.add('flowing');
+    });
+    // Ensure normal-flow particles start from left
+    if (st.dqPhase === 'burst' || st.dqPhase === 'route') {
+      dqParticleEl.forEach((p, i) => p.setAttribute('cx', GRID_X - 4 + i * 18));
+    }
+  }
+
+  // ---------- Controls ----------
+  function goto(step) {
+    const scn = scenarios[S.scenario];
+    S.step = Math.max(0, Math.min(scn.steps.length - 1, step));
+    if (S.step === scn.steps.length - 1) pause();
+    render();
+  }
+
+  function next() { goto(S.step + 1); }
+  function prev() { goto(S.step - 1); }
+  function reset() { pause(); goto(0); }
+
+  function play() {
+    if (S.playing) return;
+    const scn = scenarios[S.scenario];
+    if (S.step >= scn.steps.length - 1) goto(0);
+    S.playing = true;
+    render();
+    S.timer = setInterval(() => {
+      const scn = scenarios[S.scenario];
+      if (S.step >= scn.steps.length - 1) { pause(); return; }
+      goto(S.step + 1);
+    }, 2200);
+  }
+  function pause() {
+    S.playing = false;
+    if (S.timer) { clearInterval(S.timer); S.timer = null; }
+    render();
+  }
+  function togglePlay() { S.playing ? pause() : play(); }
+
+  function switchScenario(name) {
+    if (!scenarios[name]) return;
+    pause();
+    S.scenario = name;
+    S.step = 0;
+    render();
+  }
+
+  // ---------- Wire up ----------
+  function init() {
+    buildSVG();
+
+    document.querySelectorAll('.tab').forEach(t => {
+      t.addEventListener('click', () => switchScenario(t.dataset.scenario));
+    });
+    document.getElementById('btn-reset').addEventListener('click', reset);
+    document.getElementById('btn-prev').addEventListener('click', prev);
+    document.getElementById('btn-next').addEventListener('click', next);
+    document.getElementById('btn-play').addEventListener('click', togglePlay);
+
+    document.addEventListener('keydown', e => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      switch (e.key) {
+        case 'ArrowRight': case 'l': next(); break;
+        case 'ArrowLeft':  case 'h': prev(); break;
+        case ' ': e.preventDefault(); togglePlay(); break;
+        case 'r': case 'R': reset(); break;
+        case '1': switchScenario('read'); break;
+        case '2': switchScenario('write'); break;
+        case '3': switchScenario('refresh'); break;
+      }
+    });
+
+    render();
+  }
+
+  init();
+})();
+</script>
