@@ -715,6 +715,91 @@
     .stage::after, body::before { display: none; }
   }
 
+  /* Header right cluster (language + meta) */
+  .hdr-right {
+    display: flex;
+    align-items: center;
+    gap: 22px;
+  }
+
+  /* Language toggle */
+  .lang-toggle {
+    display: inline-flex;
+    border: 1px solid var(--rule-2);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .lang-btn {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.22em;
+    padding: 8px 12px;
+    background: transparent;
+    color: var(--ink-3);
+    border: none;
+    cursor: pointer;
+    transition: color 0.2s, background 0.2s;
+  }
+  .lang-btn + .lang-btn { border-left: 1px solid var(--rule-2); }
+  .lang-btn:hover { color: var(--ink-1); background: rgba(255, 255, 255, 0.03); }
+  .lang-btn.active {
+    color: var(--scn);
+    background: rgba(var(--scn-rgb), 0.12);
+    box-shadow: inset 0 0 12px rgba(var(--scn-rgb), 0.08);
+  }
+
+  /* Technical term tooltip trigger */
+  .term {
+    border-bottom: 1px dotted rgba(var(--scn-rgb), 0.55);
+    cursor: help;
+    transition: color 0.2s, background 0.2s, border-color 0.2s;
+    padding-bottom: 1px;
+  }
+  .term:hover, .term:focus {
+    color: var(--scn);
+    background: rgba(var(--scn-rgb), 0.08);
+    border-bottom-color: var(--scn);
+    outline: none;
+  }
+  .timing-list dt.term {
+    display: inline-block;
+    letter-spacing: 0.04em;
+  }
+
+  /* Floating tooltip */
+  .tooltip {
+    position: fixed;
+    z-index: 200;
+    max-width: 320px;
+    padding: 12px 14px;
+    background: linear-gradient(180deg, var(--panel-2), var(--panel-1));
+    border: 1px solid var(--scn);
+    border-radius: 3px;
+    color: var(--ink-1);
+    font-family: var(--font-sans);
+    font-size: 12.5px;
+    line-height: 1.55;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(-4px);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6), 0 0 16px rgba(var(--scn-rgb), 0.25);
+  }
+  .tooltip.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .tooltip .tt-name {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--scn);
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
   @media (max-width: 1120px) {
     .app {
       grid-template:
@@ -725,31 +810,38 @@
         / 1fr;
     }
     .hdr { flex-wrap: wrap; gap: 16px; }
+    .hdr-right { flex-wrap: wrap; gap: 12px; }
     .hdr-meta { display: none; }
   }
 </style>
 
-<div class="app" data-scn="read">
+<div class="app" data-scn="read" data-lang="en">
   <header class="hdr">
     <div class="brand">
       <span class="brand-mark">◐</span>
       <span class="brand-name">DRAM.OP</span>
-      <span class="brand-sub">1T1C · DDR4 command model</span>
+      <span class="brand-sub" id="brand-sub">1T1C · DDR4 command model</span>
     </div>
     <nav class="tabs" role="tablist">
-      <button class="tab active" data-scenario="read" role="tab">READ</button>
-      <button class="tab" data-scenario="write" role="tab">WRITE</button>
-      <button class="tab" data-scenario="refresh" role="tab">REFRESH</button>
+      <button class="tab active" data-scenario="read" role="tab" id="tab-read">READ</button>
+      <button class="tab" data-scenario="write" role="tab" id="tab-write">WRITE</button>
+      <button class="tab" data-scenario="refresh" role="tab" id="tab-refresh">REFRESH</button>
     </nav>
-    <div class="hdr-meta">
-      <div><span>ARRAY</span><strong>8 ROW × 16 COL</strong></div>
-      <div><span>PROFILE</span><strong>DDR4-3200 · CL16</strong></div>
+    <div class="hdr-right">
+      <div class="lang-toggle" role="group" aria-label="Language">
+        <button class="lang-btn active" data-lang="en" type="button">EN</button>
+        <button class="lang-btn" data-lang="ko" type="button">KO</button>
+      </div>
+      <div class="hdr-meta">
+        <div><span id="meta-array-label">ARRAY</span><strong>8 ROW × 16 COL</strong></div>
+        <div><span id="meta-profile-label">PROFILE</span><strong>DDR4-3200 · CL16</strong></div>
+      </div>
     </div>
   </header>
 
   <section class="stage">
     <div class="stage-head">
-      <span class="stage-label">CELL ARRAY / BANK 0</span>
+      <span class="stage-label" id="stage-label">CELL ARRAY / BANK 0</span>
       <div class="stage-status">
         <span class="status-dot"></span>
         <span id="current-op">IDLE</span>
@@ -759,17 +851,17 @@
       <svg class="grid-svg" id="svg" viewBox="0 0 900 520" preserveAspectRatio="xMidYMid meet"></svg>
     </div>
     <div class="stage-legend">
-      <span><i class="lg-dot lg-idle"></i>Idle cell</span>
-      <span><i class="lg-dot lg-wl"></i>Word line asserted</span>
-      <span><i class="lg-dot lg-sa"></i>Sense amp latched</span>
-      <span><i class="lg-dot lg-dq"></i>DQ / bit-line active</span>
+      <span><i class="lg-dot lg-idle"></i><span id="legend-idle">Idle cell</span></span>
+      <span><i class="lg-dot lg-wl"></i><span id="legend-wl">Word line asserted</span></span>
+      <span><i class="lg-dot lg-sa"></i><span id="legend-sa">Sense amp latched</span></span>
+      <span><i class="lg-dot lg-dq"></i><span id="legend-dq">DQ / bit-line active</span></span>
     </div>
   </section>
 
   <aside class="side">
     <div class="panel step-panel">
       <div class="panel-eyebrow">
-        <span>STEP</span>
+        <span id="panel-step">STEP</span>
         <span><span class="num" id="step-num">01</span> / <span id="step-total">07</span></span>
       </div>
       <span class="step-op" id="step-op">IDLE</span>
@@ -778,12 +870,12 @@
     </div>
 
     <div class="panel">
-      <div class="panel-title">COMMAND BUS</div>
+      <div class="panel-title" id="panel-command">COMMAND BUS</div>
       <div class="command-list" id="command-list"></div>
     </div>
 
     <div class="panel">
-      <div class="panel-title">TIMING · <span id="timing-profile">DDR4-3200</span></div>
+      <div class="panel-title"><span id="panel-timing">TIMING</span> · <span id="timing-profile">DDR4-3200</span></div>
       <dl class="timing-list" id="timing-list"></dl>
     </div>
   </aside>
@@ -797,6 +889,8 @@
     <div class="step-count"><strong id="sc-cur">01</strong> / <span id="sc-tot">07</span></div>
   </footer>
 </div>
+
+<div id="tooltip" class="tooltip" role="tooltip" aria-hidden="true"></div>
 
 <script>
 (() => {
@@ -842,183 +936,379 @@
 
   const scenarios = {
     read: {
-      label: 'READ',
+      label: { en: 'READ', ko: '읽기' },
       color: 'read',
-      profile: 'DDR4-3200 · CL16',
+      profile: { en: 'DDR4-3200 · CL16', ko: 'DDR4-3200 · CL16' },
       timings: [
-        ['tRCD', '13.75 ns', 'ACT → column cmd', 'tRCD'],
-        ['CL',   '16 cyc',   'RD → first DQ',    'CL'],
-        ['BL',   '8 beats',  'burst length',     null],
-        ['tRAS', '32 ns',    'ACT → PRE min',    'tRAS'],
-        ['tRP',  '13.75 ns', 'PRE → next ACT',   'tRP'],
+        { name: 'tRCD', value: { en: '13.75 ns', ko: '13.75 ns' }, desc: { en: 'ACT → column cmd', ko: 'ACT → 컬럼 명령' }, key: 'tRCD' },
+        { name: 'CL',   value: { en: '16 cyc',   ko: '16 사이클' }, desc: { en: 'RD → first DQ',    ko: 'RD → 첫 DQ 출력' }, key: 'CL' },
+        { name: 'BL',   value: { en: '8 beats',  ko: '8 비트' },   desc: { en: 'burst length',     ko: '버스트 길이' },     key: null },
+        { name: 'tRAS', value: { en: '32 ns',    ko: '32 ns' },    desc: { en: 'ACT → PRE min',    ko: 'ACT → PRE 최소' },  key: 'tRAS' },
+        { name: 'tRP',  value: { en: '13.75 ns', ko: '13.75 ns' }, desc: { en: 'PRE → next ACT',   ko: 'PRE → 다음 ACT' },  key: 'tRP' },
       ],
       steps: [
         {
-          op: 'IDLE',
-          title: 'Precharged / Idle',
-          desc: 'Bank is in the precharged state — every bit line is held at <code>Vdd/2</code> by the precharge equalisers, and no word line is asserted. The row buffer is empty; no column can be accessed until a row is opened.',
+          op: { en: 'IDLE', ko: '유휴' },
+          title: { en: 'Precharged / Idle', ko: '프리차지 상태 / 유휴' },
+          desc: {
+            en: 'Bank is in the precharged state — every bit line is held at <code>Vdd/2</code> by the precharge equalisers, and no word line is asserted. The row buffer is empty; no column can be accessed until a row is opened.',
+            ko: '뱅크가 프리차지 상태입니다 — 모든 비트라인이 프리차지 이퀄라이저에 의해 <code>Vdd/2</code>로 유지되며, 어떤 워드라인도 활성화되어 있지 않습니다. 행 버퍼는 비어 있고, 로우가 열리기 전까지는 어떤 컬럼도 접근할 수 없습니다.'
+          },
           state: { ...IDLE_STATE }
         },
         {
-          op: 'ACT · row 0x3',
-          title: 'ACT — Row Activate',
-          desc: 'Controller drives <code>ACTIVATE</code> on the command bus with a bank + row address. Word line <code>0x3</code> rises to the boosted voltage <code>Vpp</code>; every access transistor in row 3 turns on.',
+          op: { en: 'ACT · row 0x3', ko: 'ACT · 로우 0x3' },
+          title: { en: 'ACT — Row Activate', ko: 'ACT — 로우 활성화' },
+          desc: {
+            en: 'Controller drives <code>ACTIVATE</code> on the command bus with a bank + row address. Word line <code>0x3</code> rises to the boosted voltage <code>Vpp</code>; every access transistor in row 3 turns on.',
+            ko: '컨트롤러가 명령 버스에 뱅크 + 로우 주소와 함께 <code>ACTIVATE</code>를 인가합니다. 워드라인 <code>0x3</code>이 부스트 전압 <code>Vpp</code>까지 올라가며, 로우 3의 모든 액세스 트랜지스터가 켜집니다.'
+          },
           state: { ...IDLE_STATE, wordlines: [TARGET_ROW], cellPhase: 'wl', rowAddr: '0x3', bus: ['ACT'] }
         },
         {
-          op: 'ACT · charge sharing',
-          title: 'Charge Sharing',
-          desc: 'Each cell capacitor (~25 fF) shares its charge with the much larger bit-line capacitance. Every bit line drifts a few tens of millivolts above or below <code>Vdd/2</code> — the direction encodes the stored bit for that column.',
+          op: { en: 'ACT · charge sharing', ko: 'ACT · 전하 공유' },
+          title: { en: 'Charge Sharing', ko: '전하 공유' },
+          desc: {
+            en: 'Each cell capacitor (~25 fF) shares its charge with the much larger bit-line capacitance. Every bit line drifts a few tens of millivolts above or below <code>Vdd/2</code> — the direction encodes the stored bit for that column.',
+            ko: '각 셀 커패시터(~25 fF)가 훨씬 큰 비트라인 커패시턴스와 전하를 공유합니다. 모든 비트라인이 <code>Vdd/2</code> 위 또는 아래로 수십 밀리볼트 정도 움직이며 — 그 방향이 해당 컬럼에 저장된 비트를 나타냅니다.'
+          },
           state: { ...IDLE_STATE, wordlines: [TARGET_ROW], bitlines: 'all', cellPhase: 'sharing', rowAddr: '0x3', bus: ['ACT'] }
         },
         {
-          op: 'SENSE / RESTORE',
-          title: 'Sense & Restore',
-          desc: 'Sense amplifiers detect the differential, latch it, and drive each bit line to full rail (<code>0</code> or <code>Vdd</code>). Because word line 3 is still asserted, the same drive restores full charge into every cell of the row — the row buffer is now valid. Interval from ACT to this point is <code>tRCD</code>.',
+          op: { en: 'SENSE / RESTORE', ko: '센싱 / 복원' },
+          title: { en: 'Sense & Restore', ko: '센싱 및 복원' },
+          desc: {
+            en: 'Sense amplifiers detect the differential, latch it, and drive each bit line to full rail (<code>0</code> or <code>Vdd</code>). Because word line 3 is still asserted, the same drive restores full charge into every cell of the row — the row buffer is now valid. Interval from ACT to this point is <code>tRCD</code>.',
+            ko: '센스 앰프가 차동 신호를 감지하고 래치한 뒤, 각 비트라인을 완전한 레벨(<code>0</code> 또는 <code>Vdd</code>)로 구동합니다. 워드라인 3이 여전히 활성 상태이므로 동일한 구동이 로우의 모든 셀에 전하를 복원합니다 — 이제 행 버퍼가 유효합니다. ACT부터 이 지점까지의 간격이 <code>tRCD</code>입니다.'
+          },
           state: { ...IDLE_STATE, wordlines: [TARGET_ROW], bitlines: 'all', cellPhase: 'sensed', senseAmpPhase: 'latched', rowAddr: '0x3', bus: ['ACT'], highlightTiming: 'tRCD' }
         },
         {
-          op: 'RD · col 0x6',
-          title: 'RD — Column Select',
-          desc: 'Controller issues <code>READ</code> with column address <code>0x6</code>. The column decoder selects column 6 from the row buffer; that value is routed to the internal read data path.',
+          op: { en: 'RD · col 0x6', ko: 'RD · 컬럼 0x6' },
+          title: { en: 'RD — Column Select', ko: 'RD — 컬럼 선택' },
+          desc: {
+            en: 'Controller issues <code>READ</code> with column address <code>0x6</code>. The column decoder selects column 6 from the row buffer; that value is routed to the internal read data path.',
+            ko: '컨트롤러가 컬럼 주소 <code>0x6</code>과 함께 <code>READ</code>를 발행합니다. 컬럼 디코더가 행 버퍼에서 컬럼 6을 선택하고, 그 값이 내부 리드 데이터 경로로 전달됩니다.'
+          },
           state: { ...IDLE_STATE, wordlines: [TARGET_ROW], bitlines: 'all', hitCol: TARGET_COL, cellPhase: 'sensed', senseAmpPhase: 'reading', dqPhase: 'route', rowAddr: '0x3', colAddr: '0x6', bus: ['ACT', 'RD'] }
         },
         {
-          op: 'CL · DQ burst',
-          title: 'CAS Latency → DQ Burst',
-          desc: 'After CAS latency (<code>CL</code> clock cycles from the RD command), data appears on the DQ pins. DDR4 bursts <code>BL8</code> — eight beats over four clock cycles, captured on both edges.',
+          op: { en: 'CL · DQ burst', ko: 'CL · DQ 버스트' },
+          title: { en: 'CAS Latency → DQ Burst', ko: 'CAS 지연 → DQ 버스트' },
+          desc: {
+            en: 'After CAS latency (<code>CL</code> clock cycles from the RD command), data appears on the DQ pins. DDR4 bursts <code>BL8</code> — eight beats over four clock cycles, captured on both edges.',
+            ko: 'CAS 지연(RD 명령부터 <code>CL</code> 클록 사이클) 후에 데이터가 DQ 핀에 나타납니다. DDR4는 <code>BL8</code>로 버스트합니다 — 4 클록 사이클 동안 8 비트, 두 에지 모두에서 캡처됩니다.'
+          },
           state: { ...IDLE_STATE, wordlines: [TARGET_ROW], bitlines: 'all', hitCol: TARGET_COL, cellPhase: 'sensed', senseAmpPhase: 'reading', dqPhase: 'burst', rowAddr: '0x3', colAddr: '0x6', bus: ['ACT', 'RD'], highlightTiming: 'CL' }
         },
         {
-          op: 'PRE',
-          title: 'PRE — Precharge',
-          desc: '<code>PRECHARGE</code> closes the row. Word line 3 drops, then the equalisers pull bit lines back to <code>Vdd/2</code>. After <code>tRP</code> the bank is ready for another ACT — to the same or a different row.',
+          op: { en: 'PRE', ko: 'PRE' },
+          title: { en: 'PRE — Precharge', ko: 'PRE — 프리차지' },
+          desc: {
+            en: '<code>PRECHARGE</code> closes the row. Word line 3 drops, then the equalisers pull bit lines back to <code>Vdd/2</code>. After <code>tRP</code> the bank is ready for another ACT — to the same or a different row.',
+            ko: '<code>PRECHARGE</code>가 로우를 닫습니다. 워드라인 3이 떨어진 뒤, 이퀄라이저가 비트라인을 다시 <code>Vdd/2</code>로 되돌립니다. <code>tRP</code>가 지나면 뱅크는 동일한 또는 다른 로우에 대한 새 ACT를 받을 준비가 됩니다.'
+          },
           state: { ...IDLE_STATE, bus: ['ACT', 'RD', 'PRE'], highlightTiming: 'tRP' }
         }
       ]
     },
 
     write: {
-      label: 'WRITE',
+      label: { en: 'WRITE', ko: '쓰기' },
       color: 'write',
-      profile: 'DDR4-3200 · CWL14',
+      profile: { en: 'DDR4-3200 · CWL14', ko: 'DDR4-3200 · CWL14' },
       timings: [
-        ['tRCD', '13.75 ns', 'ACT → column cmd',  'tRCD'],
-        ['CWL',  '14 cyc',   'WR → first data',   'CWL'],
-        ['BL',   '8 beats',  'burst length',      null],
-        ['tWR',  '15 ns',    'last data → PRE',   'tWR'],
-        ['tRP',  '13.75 ns', 'PRE → next ACT',    'tRP'],
+        { name: 'tRCD', value: { en: '13.75 ns', ko: '13.75 ns' }, desc: { en: 'ACT → column cmd',  ko: 'ACT → 컬럼 명령' }, key: 'tRCD' },
+        { name: 'CWL',  value: { en: '14 cyc',   ko: '14 사이클' }, desc: { en: 'WR → first data',   ko: 'WR → 첫 데이터' },  key: 'CWL' },
+        { name: 'BL',   value: { en: '8 beats',  ko: '8 비트' },   desc: { en: 'burst length',      ko: '버스트 길이' },     key: null },
+        { name: 'tWR',  value: { en: '15 ns',    ko: '15 ns' },    desc: { en: 'last data → PRE',   ko: '마지막 데이터 → PRE' }, key: 'tWR' },
+        { name: 'tRP',  value: { en: '13.75 ns', ko: '13.75 ns' }, desc: { en: 'PRE → next ACT',    ko: 'PRE → 다음 ACT' },  key: 'tRP' },
       ],
       steps: [
         {
-          op: 'IDLE',
-          title: 'Precharged / Idle',
-          desc: 'Bank precharged. Bit lines at <code>Vdd/2</code>, no word line asserted. Any write must first open the target row — DRAM has no per-cell write path independent of the row buffer.',
+          op: { en: 'IDLE', ko: '유휴' },
+          title: { en: 'Precharged / Idle', ko: '프리차지 상태 / 유휴' },
+          desc: {
+            en: 'Bank precharged. Bit lines at <code>Vdd/2</code>, no word line asserted. Any write must first open the target row — DRAM has no per-cell write path independent of the row buffer.',
+            ko: '뱅크가 프리차지된 상태입니다. 비트라인은 <code>Vdd/2</code>에 있고, 활성화된 워드라인은 없습니다. 쓰기를 위해서는 먼저 대상 로우를 열어야 합니다 — DRAM은 행 버퍼와 독립적인 셀 단위 쓰기 경로가 없습니다.'
+          },
           state: { ...IDLE_STATE }
         },
         {
-          op: 'ACT · row 0x3',
-          title: 'ACT — Row Activate',
-          desc: 'Controller issues <code>ACTIVATE</code> with row <code>0x3</code>. Word line 3 rises; every access transistor in the row turns on. Identical to the read path — DRAM does not distinguish read vs. write during activation.',
+          op: { en: 'ACT · row 0x3', ko: 'ACT · 로우 0x3' },
+          title: { en: 'ACT — Row Activate', ko: 'ACT — 로우 활성화' },
+          desc: {
+            en: 'Controller issues <code>ACTIVATE</code> with row <code>0x3</code>. Word line 3 rises; every access transistor in the row turns on. Identical to the read path — DRAM does not distinguish read vs. write during activation.',
+            ko: '컨트롤러가 로우 <code>0x3</code>과 함께 <code>ACTIVATE</code>를 발행합니다. 워드라인 3이 올라가고, 해당 로우의 모든 액세스 트랜지스터가 켜집니다. 읽기 경로와 동일합니다 — DRAM은 활성화 단계에서 읽기와 쓰기를 구분하지 않습니다.'
+          },
           state: { ...IDLE_STATE, wordlines: [TARGET_ROW], cellPhase: 'wl', rowAddr: '0x3', bus: ['ACT'] }
         },
         {
-          op: 'ACT · sense / restore',
-          title: 'Row Buffer Populated',
-          desc: 'Charge sharing followed by sense amplification — same physics as a read. The entire row is now latched in the sense amps. Only after this can a column be modified.',
+          op: { en: 'ACT · sense / restore', ko: 'ACT · 센싱 / 복원' },
+          title: { en: 'Row Buffer Populated', ko: '행 버퍼 로드 완료' },
+          desc: {
+            en: 'Charge sharing followed by sense amplification — same physics as a read. The entire row is now latched in the sense amps. Only after this can a column be modified.',
+            ko: '전하 공유 후 센스 증폭 — 읽기와 동일한 물리 과정입니다. 이제 전체 로우가 센스 앰프에 래치되어 있습니다. 이 단계 이후에만 컬럼을 수정할 수 있습니다.'
+          },
           state: { ...IDLE_STATE, wordlines: [TARGET_ROW], bitlines: 'all', cellPhase: 'sensed', senseAmpPhase: 'latched', rowAddr: '0x3', bus: ['ACT'], highlightTiming: 'tRCD' }
         },
         {
-          op: 'WR · col 0x6',
-          title: 'WR — Write Command',
-          desc: 'Controller issues <code>WRITE</code> with column <code>0x6</code> and drives new data onto DQ. After Write Latency (<code>CWL</code>) the write drivers overpower sense-amp column 6, forcing the new bit into the row buffer.',
+          op: { en: 'WR · col 0x6', ko: 'WR · 컬럼 0x6' },
+          title: { en: 'WR — Write Command', ko: 'WR — 쓰기 명령' },
+          desc: {
+            en: 'Controller issues <code>WRITE</code> with column <code>0x6</code> and drives new data onto DQ. After Write Latency (<code>CWL</code>) the write drivers overpower sense-amp column 6, forcing the new bit into the row buffer.',
+            ko: '컨트롤러가 컬럼 <code>0x6</code>과 함께 <code>WRITE</code>를 발행하고 새 데이터를 DQ에 실어 보냅니다. 쓰기 지연(<code>CWL</code>) 후에 쓰기 드라이버가 컬럼 6의 센스 앰프를 압도하며 새 비트를 행 버퍼에 강제로 씁니다.'
+          },
           state: { ...IDLE_STATE, wordlines: [TARGET_ROW], bitlines: 'all', hitCol: TARGET_COL, cellPhase: 'sensed', senseAmpPhase: 'writing', dqPhase: 'incoming', rowAddr: '0x3', colAddr: '0x6', bus: ['ACT', 'WR'], highlightTiming: 'CWL' }
         },
         {
-          op: 'CELL WRITE-BACK',
-          title: 'Cell Update',
-          desc: 'Because word line 3 is still asserted, the overwritten sense-amp value flows back through the still-open access transistor and charges (or discharges) the target cell capacitor to its new value.',
+          op: { en: 'CELL WRITE-BACK', ko: '셀 라이트백' },
+          title: { en: 'Cell Update', ko: '셀 업데이트' },
+          desc: {
+            en: 'Because word line 3 is still asserted, the overwritten sense-amp value flows back through the still-open access transistor and charges (or discharges) the target cell capacitor to its new value.',
+            ko: '워드라인 3이 여전히 활성 상태이기 때문에, 덮어쓴 센스 앰프 값이 여전히 열린 액세스 트랜지스터를 통해 다시 흘러 대상 셀 커패시터를 새 값으로 충전(또는 방전)합니다.'
+          },
           state: { ...IDLE_STATE, wordlines: [TARGET_ROW], bitlines: 'all', hitCol: TARGET_COL, cellPhase: 'writing', senseAmpPhase: 'writing', dqPhase: 'incoming', rowAddr: '0x3', colAddr: '0x6', bus: ['ACT', 'WR'] }
         },
         {
-          op: 'tWR · recovery',
-          title: 'Write Recovery',
-          desc: 'After the last write beat, the DRAM needs <code>tWR</code> (≈15 ns typical) to fully charge the cell before the row can be closed. Issuing PRE too early risks an incomplete write and lost data.',
+          op: { en: 'tWR · recovery', ko: 'tWR · 복구' },
+          title: { en: 'Write Recovery', ko: '쓰기 복구' },
+          desc: {
+            en: 'After the last write beat, the DRAM needs <code>tWR</code> (≈15 ns typical) to fully charge the cell before the row can be closed. Issuing PRE too early risks an incomplete write and lost data.',
+            ko: '마지막 쓰기 비트 이후, DRAM은 로우를 닫기 전에 셀을 완전히 충전하기 위해 <code>tWR</code>(일반적으로 ≈15 ns)이 필요합니다. PRE를 너무 일찍 발행하면 불완전한 쓰기와 데이터 손실 위험이 있습니다.'
+          },
           state: { ...IDLE_STATE, wordlines: [TARGET_ROW], bitlines: 'all', hitCol: TARGET_COL, cellPhase: 'sensed', senseAmpPhase: 'latched', rowAddr: '0x3', colAddr: '0x6', bus: ['ACT', 'WR'], highlightTiming: 'tWR' }
         },
         {
-          op: 'PRE',
-          title: 'PRE — Precharge',
-          desc: '<code>PRECHARGE</code> closes the row. Word line 3 drops, then bit lines are equalised back to <code>Vdd/2</code>. After <code>tRP</code> the bank is available for another ACT.',
+          op: { en: 'PRE', ko: 'PRE' },
+          title: { en: 'PRE — Precharge', ko: 'PRE — 프리차지' },
+          desc: {
+            en: '<code>PRECHARGE</code> closes the row. Word line 3 drops, then bit lines are equalised back to <code>Vdd/2</code>. After <code>tRP</code> the bank is available for another ACT.',
+            ko: '<code>PRECHARGE</code>가 로우를 닫습니다. 워드라인 3이 떨어진 뒤, 비트라인이 <code>Vdd/2</code>로 이퀄라이즈됩니다. <code>tRP</code>가 지나면 뱅크에 새로운 ACT를 발행할 수 있습니다.'
+          },
           state: { ...IDLE_STATE, bus: ['ACT', 'WR', 'PRE'], highlightTiming: 'tRP' }
         }
       ]
     },
 
     refresh: {
-      label: 'REFRESH',
+      label: { en: 'REFRESH', ko: '리프레시' },
       color: 'refresh',
-      profile: 'DDR4 · Auto-Refresh',
+      profile: { en: 'DDR4 · Auto-Refresh', ko: 'DDR4 · 자동 리프레시' },
       timings: [
-        ['tREFI', '7.8 μs',  'avg REF interval',   'tREFI'],
-        ['tREFW', '64 ms',   'retention window',   'tREFW'],
-        ['tRFC',  '~350 ns', 'REF cycle time',     'tRFC'],
-        ['REF/W', '8192',    'REFs per window',    null],
-        ['tRP',   '13.75 ns', 'internal PRE',      null],
+        { name: 'tREFI', value: { en: '7.8 μs',  ko: '7.8 μs' },   desc: { en: 'avg REF interval',   ko: '평균 REF 간격' },  key: 'tREFI' },
+        { name: 'tREFW', value: { en: '64 ms',   ko: '64 ms' },    desc: { en: 'retention window',   ko: '유지 시간' },      key: 'tREFW' },
+        { name: 'tRFC',  value: { en: '~350 ns', ko: '~350 ns' },  desc: { en: 'REF cycle time',     ko: 'REF 사이클 시간' }, key: 'tRFC' },
+        { name: 'REF/W', value: { en: '8192',    ko: '8192' },     desc: { en: 'REFs per window',    ko: '윈도우당 REF 수' }, key: null },
+        { name: 'tRP',   value: { en: '13.75 ns', ko: '13.75 ns' }, desc: { en: 'internal PRE',      ko: '내부 PRE' },       key: null },
       ],
       steps: [
         {
-          op: 'IDLE · all banks PRE',
-          title: 'All Banks Precharged',
-          desc: '<code>REF</code> requires every bank to be precharged — nothing may be open. The DRAM maintains an internal refresh counter that names the next row group to refresh; the controller never supplies a row address.',
+          op: { en: 'IDLE · all banks PRE', ko: '유휴 · 모든 뱅크 PRE' },
+          title: { en: 'All Banks Precharged', ko: '모든 뱅크 프리차지' },
+          desc: {
+            en: '<code>REF</code> requires every bank to be precharged — nothing may be open. The DRAM maintains an internal refresh counter that names the next row group to refresh; the controller never supplies a row address.',
+            ko: '<code>REF</code>는 모든 뱅크가 프리차지되어 있어야 합니다 — 열려 있는 로우가 없어야 합니다. DRAM은 다음에 리프레시할 로우 그룹을 가리키는 내부 리프레시 카운터를 유지하며, 컨트롤러는 로우 주소를 제공하지 않습니다.'
+          },
           state: { ...IDLE_STATE }
         },
         {
-          op: 'tREFI · REF due',
-          title: 'Refresh Interval Elapsed',
-          desc: 'On average every <code>tREFI</code> (7.8 μs at normal temperature) the controller must issue a REF. Cells only hold charge for <code>tREFW</code> ≈ 64 ms — 8192 REFs cover the whole array within that window.',
+          op: { en: 'tREFI · REF due', ko: 'tREFI · REF 시점' },
+          title: { en: 'Refresh Interval Elapsed', ko: '리프레시 간격 도달' },
+          desc: {
+            en: 'On average every <code>tREFI</code> (7.8 μs at normal temperature) the controller must issue a REF. Cells only hold charge for <code>tREFW</code> ≈ 64 ms — 8192 REFs cover the whole array within that window.',
+            ko: '평균적으로 <code>tREFI</code>(정상 온도에서 7.8 μs)마다 컨트롤러는 REF를 발행해야 합니다. 셀은 <code>tREFW</code> ≈ 64 ms 동안만 전하를 유지합니다 — 8192번의 REF가 그 윈도우 안에서 전체 어레이를 커버합니다.'
+          },
           state: { ...IDLE_STATE, highlightTiming: 'tREFI' }
         },
         {
-          op: 'REF',
-          title: 'REF — Auto-Refresh Command',
-          desc: 'Controller drives <code>REFRESH</code> on the command bus. No row address accompanies it — the DRAM alone decides which rows to refresh next, using its internal counter.',
+          op: { en: 'REF', ko: 'REF' },
+          title: { en: 'REF — Auto-Refresh Command', ko: 'REF — 자동 리프레시 명령' },
+          desc: {
+            en: 'Controller drives <code>REFRESH</code> on the command bus. No row address accompanies it — the DRAM alone decides which rows to refresh next, using its internal counter.',
+            ko: '컨트롤러가 명령 버스에 <code>REFRESH</code>를 인가합니다. 로우 주소는 함께 오지 않으며 — DRAM이 내부 카운터를 사용해 다음에 리프레시할 로우를 스스로 결정합니다.'
+          },
           state: { ...IDLE_STATE, bus: ['REF'] }
         },
         {
-          op: 'REF · internal ACT',
-          title: 'Internal Row Activation',
-          desc: 'The DRAM internally asserts the word lines pointed to by its counter. Access transistors turn on and charge sharing begins — a full activation, but driven from within the die rather than by an external ACT.',
+          op: { en: 'REF · internal ACT', ko: 'REF · 내부 ACT' },
+          title: { en: 'Internal Row Activation', ko: '내부 로우 활성화' },
+          desc: {
+            en: 'The DRAM internally asserts the word lines pointed to by its counter. Access transistors turn on and charge sharing begins — a full activation, but driven from within the die rather than by an external ACT.',
+            ko: 'DRAM이 내부적으로 카운터가 가리키는 워드라인을 활성화합니다. 액세스 트랜지스터가 켜지고 전하 공유가 시작됩니다 — 완전한 활성화이지만 외부 ACT가 아닌 다이 내부에서 구동됩니다.'
+          },
           state: { ...IDLE_STATE, wordlines: [1, 2, 3], cellPhase: 'refresh', rowAddr: '⟳', bus: ['REF'] }
         },
         {
-          op: 'REF · sense / restore',
-          title: 'Sense & Restore',
-          desc: 'Sense amps latch the row and drive bit lines to full rail, restoring charge into every cell in the addressed rows. This is the entire purpose of refresh: halting the exponential decay of the storage capacitors before data is lost.',
+          op: { en: 'REF · sense / restore', ko: 'REF · 센싱 / 복원' },
+          title: { en: 'Sense & Restore', ko: '센싱 및 복원' },
+          desc: {
+            en: 'Sense amps latch the row and drive bit lines to full rail, restoring charge into every cell in the addressed rows. This is the entire purpose of refresh: halting the exponential decay of the storage capacitors before data is lost.',
+            ko: '센스 앰프가 로우를 래치하고 비트라인을 완전한 레벨로 구동하여, 지정된 로우의 모든 셀에 전하를 복원합니다. 이것이 리프레시의 전체 목적입니다: 데이터가 손실되기 전에 저장 커패시터의 지수적 감쇠를 멈추는 것.'
+          },
           state: { ...IDLE_STATE, wordlines: [1, 2, 3], bitlines: 'all', cellPhase: 'refresh', senseAmpPhase: 'latched', rowAddr: '⟳', bus: ['REF'] }
         },
         {
-          op: 'REF · PRE + advance',
-          title: 'Precharge & Counter Advance',
-          desc: 'The DRAM precharges the refreshed rows internally and advances its refresh counter. Many DDR4 devices refresh multiple rows per REF command, amortising the fixed per-command overhead.',
+          op: { en: 'REF · PRE + advance', ko: 'REF · PRE + 진행' },
+          title: { en: 'Precharge & Counter Advance', ko: '프리차지 및 카운터 진행' },
+          desc: {
+            en: 'The DRAM precharges the refreshed rows internally and advances its refresh counter. Many DDR4 devices refresh multiple rows per REF command, amortising the fixed per-command overhead.',
+            ko: 'DRAM은 리프레시된 로우를 내부적으로 프리차지하고 리프레시 카운터를 진행시킵니다. 많은 DDR4 장치는 REF 명령당 여러 로우를 리프레시하여 명령당 고정 오버헤드를 분산시킵니다.'
+          },
           state: { ...IDLE_STATE, wordlines: [4, 5, 6], cellPhase: 'refresh', rowAddr: '⟳+', bus: ['REF'] }
         },
         {
-          op: 'REF · complete',
-          title: 'tRFC Elapsed',
-          desc: 'After <code>tRFC</code> (≈350 ns for a typical DDR4 die), REF completes and normal commands can resume. The next REF must be issued within <code>tREFI</code>, otherwise retention margin accumulated in the pooling budget is spent — and beyond that, data is lost.',
+          op: { en: 'REF · complete', ko: 'REF · 완료' },
+          title: { en: 'tRFC Elapsed', ko: 'tRFC 경과' },
+          desc: {
+            en: 'After <code>tRFC</code> (≈350 ns for a typical DDR4 die), REF completes and normal commands can resume. The next REF must be issued within <code>tREFI</code>, otherwise retention margin accumulated in the pooling budget is spent — and beyond that, data is lost.',
+            ko: '<code>tRFC</code>(일반적인 DDR4 다이에서 ≈350 ns) 후에 REF가 완료되고 일반 명령을 다시 시작할 수 있습니다. 다음 REF는 <code>tREFI</code> 안에 발행되어야 하며, 그렇지 않으면 풀링 예산에 축적된 유지 마진이 소모되고 — 그 이상이면 데이터가 손실됩니다.'
+          },
           state: { ...IDLE_STATE, bus: ['REF'], highlightTiming: 'tRFC' }
         }
       ]
     }
   };
 
+  // ---------- i18n / UI strings ----------
+  const UI = {
+    brandSub:      { en: '1T1C · DDR4 command model', ko: '1T1C · DDR4 명령 모델' },
+    metaArray:     { en: 'ARRAY',   ko: '어레이' },
+    metaProfile:   { en: 'PROFILE', ko: '프로파일' },
+    stageLabel:    { en: 'CELL ARRAY / BANK 0', ko: '셀 어레이 / 뱅크 0' },
+    legendIdle:    { en: 'Idle cell', ko: '유휴 셀' },
+    legendWl:      { en: 'Word line asserted', ko: '워드라인 활성' },
+    legendSa:      { en: 'Sense amp latched', ko: '센스 앰프 래치' },
+    legendDq:      { en: 'DQ / bit-line active', ko: 'DQ / 비트라인 활성' },
+    panelStep:     { en: 'STEP', ko: '단계' },
+    panelCommand:  { en: 'COMMAND BUS', ko: '명령 버스' },
+    panelTiming:   { en: 'TIMING', ko: '타이밍' },
+    btnReset:      { en: '↺ RESET', ko: '↺ 초기화' },
+    btnPrev:       { en: '◀ PREV',  ko: '◀ 이전' },
+    btnPlay:       { en: '▶ PLAY',  ko: '▶ 재생' },
+    btnPause:      { en: '❚❚ PAUSE', ko: '❚❚ 일시정지' },
+    btnNext:       { en: 'NEXT ▶',  ko: '다음 ▶' },
+    svgCellArray:  { en: 'CELL ARRAY', ko: '셀 어레이' },
+    svgSenseAmps:  { en: 'SENSE AMPS', ko: '센스 앰프' },
+    svgDqBus:      { en: 'DQ BUS', ko: 'DQ 버스' },
+    svgRowDec:     { en: 'ROW DEC', ko: '로우 디코더' },
+    svgColDec:     { en: 'COL DEC', ko: '컬럼 디코더' },
+    svgDqOut:      { en: 'DQ →', ko: 'DQ →' }
+  };
+
+  // ---------- Technical term definitions (for hover tooltips) ----------
+  const TERM_DEFS = {
+    'REF': {
+      name: 'REF · Refresh',
+      en: 'Auto-refresh command. Restores charge in DRAM cells before it leaks away. Every cell must be refreshed within tREFW (~64 ms).',
+      ko: '자동 리프레시 명령. DRAM 셀의 전하가 새어 나가기 전에 복원합니다. 모든 셀은 tREFW(~64 ms) 안에 리프레시되어야 합니다.'
+    },
+    'RD': {
+      name: 'RD · Read',
+      en: 'Column-read command. Issued after ACT; reads one column out of the currently open row buffer onto the DQ pins after CL cycles.',
+      ko: '컬럼 읽기 명령. ACT 이후에 발행되어, 현재 열린 행 버퍼에서 한 컬럼을 CL 사이클 뒤 DQ 핀으로 읽어냅니다.'
+    },
+    'WR': {
+      name: 'WR · Write',
+      en: 'Column-write command. Issued after ACT; the DRAM latches the DQ data into the row buffer at column X, CWL cycles after the command.',
+      ko: '컬럼 쓰기 명령. ACT 이후에 발행되며, DRAM은 명령 후 CWL 사이클 뒤에 DQ 데이터를 컬럼 X의 행 버퍼에 래치합니다.'
+    },
+    'ACT': {
+      name: 'ACT · Activate',
+      en: 'Row-activate command. Opens the addressed row into the sense-amp row buffer. Only one row per bank can be active at a time.',
+      ko: '로우 활성화 명령. 지정된 로우를 센스 앰프 행 버퍼로 엽니다. 뱅크당 한 번에 하나의 로우만 활성화될 수 있습니다.'
+    },
+    'PRE': {
+      name: 'PRE · Precharge',
+      en: 'Precharge command. Closes the currently open row and equalises the bit lines back to Vdd/2. Required before another ACT.',
+      ko: '프리차지 명령. 현재 열린 로우를 닫고 비트라인을 다시 Vdd/2로 이퀄라이즈합니다. 다음 ACT 전에 반드시 필요합니다.'
+    },
+    'Active': {
+      name: 'Active state',
+      en: 'A row is active when it has been ACTed and remains latched in the sense-amp row buffer. Column commands (RD/WR) only work on the active row.',
+      ko: '로우가 ACT되어 센스 앰프 행 버퍼에 래치되어 있는 상태. 컬럼 명령(RD/WR)은 활성 로우에만 동작합니다.'
+    },
+    'tREFI': {
+      name: 'tREFI · Refresh Interval',
+      en: 'Average time between REF commands the controller must issue. Typically 7.8 μs at normal temperature (halved at extended temperature).',
+      ko: '컨트롤러가 REF 명령을 발행해야 하는 평균 간격. 정상 온도에서 일반적으로 7.8 μs (확장 온도에서는 절반).'
+    },
+    'tREFW': {
+      name: 'tREFW · Refresh Window',
+      en: 'The retention window inside which every row must be refreshed at least once. Typically 64 ms for DDR4 at normal temperature.',
+      ko: '모든 로우가 최소 한 번은 리프레시되어야 하는 유지 시간. DDR4에서 정상 온도 기준 일반적으로 64 ms.'
+    },
+    'tRFC': {
+      name: 'tRFC · Refresh Cycle Time',
+      en: 'How long a single REF command occupies the DRAM. During tRFC no other commands can be accepted. Typically ~350 ns on DDR4.',
+      ko: '단일 REF 명령이 DRAM을 점유하는 시간. tRFC 동안 다른 명령은 받을 수 없습니다. DDR4에서 일반적으로 ~350 ns.'
+    },
+    'tRCD': {
+      name: 'tRCD · Row-to-Column Delay',
+      en: 'Minimum delay from ACT to the first column command (RD/WR). Covers charge sharing plus sense-amp latch. ~13.75 ns on DDR4-3200.',
+      ko: 'ACT부터 첫 컬럼 명령(RD/WR)까지의 최소 지연. 전하 공유와 센스 앰프 래치 시간을 포함. DDR4-3200 기준 ~13.75 ns.'
+    },
+    'tRAS': {
+      name: 'tRAS · Row Active Time',
+      en: 'Minimum time a row must remain open after ACT before it can be precharged. Ensures the row is fully restored. ~32 ns on DDR4-3200.',
+      ko: 'ACT 후 로우가 프리차지되기 전까지 열린 채로 유지되어야 하는 최소 시간. 로우가 완전히 복원되도록 보장합니다. DDR4-3200에서 ~32 ns.'
+    },
+    'tRP': {
+      name: 'tRP · Row Precharge Time',
+      en: 'Time from PRE command to when the next ACT can be issued. ~13.75 ns on DDR4-3200.',
+      ko: 'PRE 명령부터 다음 ACT를 발행할 수 있을 때까지의 시간. DDR4-3200 기준 ~13.75 ns.'
+    },
+    'tWR': {
+      name: 'tWR · Write Recovery',
+      en: 'Time from the last write data beat to when PRE can be issued. Ensures the cell is fully charged before the row closes. ~15 ns typical.',
+      ko: '마지막 쓰기 데이터 비트부터 PRE를 발행할 수 있을 때까지의 시간. 로우가 닫히기 전 셀이 완전히 충전되도록 보장. 일반적으로 ~15 ns.'
+    },
+    'CL': {
+      name: 'CL · CAS Latency',
+      en: 'Clock cycles from the RD command to the first DQ data output. 16 cycles on DDR4-3200 CL16.',
+      ko: 'RD 명령부터 첫 DQ 데이터 출력까지의 클록 사이클. DDR4-3200 CL16에서 16 사이클.'
+    },
+    'CWL': {
+      name: 'CWL · CAS Write Latency',
+      en: 'Clock cycles from the WR command to the first DQ data input. Typically 14 cycles on DDR4-3200.',
+      ko: 'WR 명령부터 첫 DQ 데이터 입력까지의 클록 사이클. DDR4-3200에서 일반적으로 14 사이클.'
+    },
+    'BL': {
+      name: 'BL · Burst Length',
+      en: 'Number of data beats transferred per column command. DDR4 uses BL8 — eight beats over four clock cycles (two per cycle).',
+      ko: '컬럼 명령당 전송되는 데이터 비트 수. DDR4는 BL8을 사용 — 4 클록 사이클 동안 8 비트 (사이클당 2).'
+    },
+    'BL8': {
+      name: 'BL8 · Burst Length 8',
+      en: 'Burst length of 8 beats — the default DDR4 transfer size. Eight beats over four clock cycles, captured on both clock edges.',
+      ko: '8 비트 버스트 길이 — DDR4의 기본 전송 크기. 4 클록 사이클 동안 8 비트, 두 클록 에지 모두에서 캡처.'
+    },
+    'Vdd': {
+      name: 'Vdd · Supply Voltage',
+      en: 'The DRAM core power rail. Typically 1.2 V on DDR4. Bit lines are held at Vdd/2 in the precharged state.',
+      ko: 'DRAM 코어 전원. DDR4에서 일반적으로 1.2 V. 프리차지 상태에서 비트라인은 Vdd/2로 유지됩니다.'
+    },
+    'Vpp': {
+      name: 'Vpp · Boosted Word-Line Voltage',
+      en: 'A voltage higher than Vdd used to fully turn on access transistors. Ensures the cell capacitor can charge to a full Vdd level.',
+      ko: 'Vdd보다 높은 전압으로, 액세스 트랜지스터를 완전히 켜기 위해 사용됩니다. 셀 커패시터가 완전한 Vdd 레벨까지 충전될 수 있도록 보장합니다.'
+    },
+    'DQ': {
+      name: 'DQ · Data Pins',
+      en: 'The I/O bus that carries read and write data between the DRAM and the memory controller.',
+      ko: 'DRAM과 메모리 컨트롤러 사이에서 리드/라이트 데이터를 전송하는 I/O 버스.'
+    }
+  };
+
+  const t = (obj) => (obj && typeof obj === 'object' && obj[S.lang] != null) ? obj[S.lang] : obj;
+
   // ---------- State ----------
   const S = {
     scenario: 'read',
     step: 0,
     playing: false,
-    timer: null
+    timer: null,
+    lang: (localStorage.getItem('dram-lang') === 'ko') ? 'ko' : 'en'
   };
 
   // ---------- SVG build ----------
@@ -1048,7 +1338,7 @@
       class: 'frame', rx: 2
     }));
     // Frame label
-    const fl = el('text', { x: GRID_X - 18, y: GRID_Y - 32, class: 'frame-label' });
+    const fl = el('text', { x: GRID_X - 18, y: GRID_Y - 32, class: 'frame-label', id: 'svg-cell-array-label' });
     fl.textContent = 'CELL ARRAY';
     gAmb.appendChild(fl);
     svg.appendChild(gAmb);
@@ -1125,7 +1415,7 @@
       x: GRID_X - 8, y: saBoxY, width: GRID_W + 16, height: 34,
       class: 'frame', rx: 2
     }));
-    const saLabel = el('text', { x: GRID_X - 18, y: saBoxY + 20, class: 'frame-label', 'text-anchor': 'end' });
+    const saLabel = el('text', { x: GRID_X - 18, y: saBoxY + 20, class: 'frame-label', 'text-anchor': 'end', id: 'svg-sense-amps-label' });
     saLabel.textContent = 'SENSE AMPS';
     svg.appendChild(saLabel);
 
@@ -1159,14 +1449,14 @@
       class: 'dq-bus', id: 'dq-out'
     }));
     dqLabelEl = el('text', {
-      x: GRID_X + GRID_W + 68, y: DQ_Y + 4, class: 'dq-label'
+      x: GRID_X + GRID_W + 68, y: DQ_Y + 4, class: 'dq-label', id: 'svg-dq-out-label'
     });
     dqLabelEl.textContent = 'DQ →';
     svg.appendChild(dqLabelEl);
 
     // DQ label on left
     const dqLeft = el('text', {
-      x: GRID_X - 18, y: DQ_Y + 4, class: 'frame-label', 'text-anchor': 'end'
+      x: GRID_X - 18, y: DQ_Y + 4, class: 'frame-label', 'text-anchor': 'end', id: 'svg-dq-bus-label'
     });
     dqLeft.textContent = 'DQ BUS';
     svg.appendChild(dqLeft);
@@ -1192,7 +1482,7 @@
     });
     svg.appendChild(rowDecEl);
     const rowDecLabel = el('text', {
-      x: 20 + decW / 2, y: GRID_Y + GRID_H / 2 - 4, class: 'dec-label', 'text-anchor': 'middle'
+      x: 20 + decW / 2, y: GRID_Y + GRID_H / 2 - 4, class: 'dec-label', 'text-anchor': 'middle', id: 'svg-row-dec-label'
     });
     rowDecLabel.textContent = 'ROW DEC';
     svg.appendChild(rowDecLabel);
@@ -1215,7 +1505,7 @@
     });
     svg.appendChild(colDecEl);
     const colDecLabel = el('text', {
-      x: GRID_X + GRID_W / 2, y: 25, class: 'dec-label', 'text-anchor': 'middle'
+      x: GRID_X + GRID_W / 2, y: 25, class: 'dec-label', 'text-anchor': 'middle', id: 'svg-col-dec-label'
     });
     colDecLabel.textContent = 'COL DEC';
     svg.appendChild(colDecLabel);
@@ -1234,56 +1524,155 @@
     if (on) el.classList.add(cls); else el.classList.remove(cls);
   }
 
+  // Wrap known technical terms inside a DOM subtree with hoverable spans.
+  const TERM_KEYS = Object.keys(TERM_DEFS).sort((a, b) => b.length - a.length);
+  const TERM_REGEX = new RegExp(
+    '(?:^|[\\s(\\[/,.;:])((?:' +
+    TERM_KEYS.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') +
+    '))(?=$|[\\s)\\],.;:/])',
+    'g'
+  );
+  function wrapTermsInNode(root) {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode(n) {
+        // Skip nodes already inside a .term span
+        let p = n.parentNode;
+        while (p && p !== root) {
+          if (p.classList && p.classList.contains('term')) return NodeFilter.FILTER_REJECT;
+          p = p.parentNode;
+        }
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    });
+    const nodes = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+    nodes.forEach(node => {
+      const text = node.nodeValue;
+      TERM_REGEX.lastIndex = 0;
+      if (!TERM_REGEX.test(text)) return;
+      TERM_REGEX.lastIndex = 0;
+      const frag = document.createDocumentFragment();
+      let last = 0;
+      let m;
+      while ((m = TERM_REGEX.exec(text)) !== null) {
+        const term = m[1];
+        const start = m.index + (m[0].length - term.length);
+        if (start > last) frag.appendChild(document.createTextNode(text.slice(last, start)));
+        const span = document.createElement('span');
+        span.className = 'term';
+        span.tabIndex = 0;
+        span.dataset.term = term;
+        span.textContent = term;
+        frag.appendChild(span);
+        last = start + term.length;
+        // Ensure regex advances past the term
+        TERM_REGEX.lastIndex = last;
+      }
+      if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+      node.parentNode.replaceChild(frag, node);
+    });
+  }
+
   function render() {
     const scn = scenarios[S.scenario];
     const step = scn.steps[S.step];
     const st = step.state;
 
-    // Root scenario for CSS accent variable
-    document.querySelector('.app').setAttribute('data-scn', S.scenario);
+    // Root scenario + language for CSS accent variable
+    const app = document.querySelector('.app');
+    app.setAttribute('data-scn', S.scenario);
+    app.setAttribute('data-lang', S.lang);
+    document.documentElement.lang = S.lang;
 
-    // Tabs
-    document.querySelectorAll('.tab').forEach(t => {
-      t.classList.toggle('active', t.dataset.scenario === S.scenario);
+    // Language toggle button state
+    document.querySelectorAll('.lang-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.lang === S.lang);
+    });
+
+    // Static UI strings
+    document.getElementById('brand-sub').textContent = t(UI.brandSub);
+    document.getElementById('meta-array-label').textContent = t(UI.metaArray);
+    document.getElementById('meta-profile-label').textContent = t(UI.metaProfile);
+    document.getElementById('stage-label').textContent = t(UI.stageLabel);
+    document.getElementById('legend-idle').textContent = t(UI.legendIdle);
+    document.getElementById('legend-wl').textContent = t(UI.legendWl);
+    document.getElementById('legend-sa').textContent = t(UI.legendSa);
+    document.getElementById('legend-dq').textContent = t(UI.legendDq);
+    document.getElementById('panel-step').textContent = t(UI.panelStep);
+    document.getElementById('panel-command').textContent = t(UI.panelCommand);
+    document.getElementById('panel-timing').textContent = t(UI.panelTiming);
+    document.getElementById('btn-reset').textContent = t(UI.btnReset);
+    document.getElementById('btn-prev').textContent = t(UI.btnPrev);
+    document.getElementById('btn-next').textContent = t(UI.btnNext);
+
+    // SVG labels
+    const setSvg = (id, val) => {
+      const e = document.getElementById(id);
+      if (e) e.textContent = val;
+    };
+    setSvg('svg-cell-array-label', t(UI.svgCellArray));
+    setSvg('svg-sense-amps-label', t(UI.svgSenseAmps));
+    setSvg('svg-dq-bus-label',     t(UI.svgDqBus));
+    setSvg('svg-dq-out-label',     t(UI.svgDqOut));
+    setSvg('svg-row-dec-label',    t(UI.svgRowDec));
+    setSvg('svg-col-dec-label',    t(UI.svgColDec));
+
+    // Tab labels
+    document.getElementById('tab-read').textContent = t(scenarios.read.label);
+    document.getElementById('tab-write').textContent = t(scenarios.write.label);
+    document.getElementById('tab-refresh').textContent = t(scenarios.refresh.label);
+
+    // Tabs active
+    document.querySelectorAll('.tab').forEach(tabEl => {
+      tabEl.classList.toggle('active', tabEl.dataset.scenario === S.scenario);
     });
 
     // Header op
-    document.getElementById('current-op').textContent = step.op;
+    document.getElementById('current-op').textContent = t(step.op);
 
     // Step panel
     document.getElementById('step-num').textContent = String(S.step + 1).padStart(2, '0');
     document.getElementById('step-total').textContent = String(scn.steps.length).padStart(2, '0');
-    document.getElementById('step-op').textContent = step.op;
-    document.getElementById('step-title').textContent = step.title;
-    document.getElementById('step-desc').innerHTML = step.desc;
+    document.getElementById('step-op').textContent = t(step.op);
+    document.getElementById('step-title').textContent = t(step.title);
+    const descEl = document.getElementById('step-desc');
+    descEl.innerHTML = t(step.desc);
+    wrapTermsInNode(descEl);
 
-    // Command bus
+    // Command bus — wrap chips as hoverable terms too
     const cbEl = document.getElementById('command-list');
     cbEl.innerHTML = '';
     st.bus.forEach((cmd, i) => {
       const chip = document.createElement('span');
       chip.className = 'cmd-chip' + (i === st.bus.length - 1 ? ' current' : '');
       chip.textContent = cmd;
+      if (TERM_DEFS[cmd]) {
+        chip.classList.add('term');
+        chip.dataset.term = cmd;
+        chip.tabIndex = 0;
+      }
       cbEl.appendChild(chip);
     });
 
     // Timing panel
     const tp = document.getElementById('timing-list');
     tp.innerHTML = '';
-    document.getElementById('timing-profile').textContent = scn.profile;
-    scn.timings.forEach(([name, val, desc, key]) => {
-      const isHi = st.highlightTiming === key;
+    document.getElementById('timing-profile').textContent = t(scn.profile);
+    scn.timings.forEach(row => {
+      const isHi = st.highlightTiming === row.key;
       const dt = document.createElement('dt');
-      dt.textContent = name;
+      dt.textContent = row.name;
+      if (TERM_DEFS[row.name]) {
+        dt.classList.add('term');
+        dt.dataset.term = row.name;
+        dt.tabIndex = 0;
+      }
       const dd = document.createElement('dd');
-      dd.textContent = val;
+      dd.textContent = t(row.value);
       const d = document.createElement('span');
       d.className = 'desc';
-      d.textContent = desc;
-      if (isHi) { dt.className = 'hi'; dd.className = 'hi'; d.classList.add('hi'); }
-      const row = document.createElement('div');
-      row.className = 'timing-list-row' + (isHi ? ' hi' : '');
-      // Group into contents
+      d.textContent = t(row.desc);
+      if (isHi) { dt.classList.add('hi'); dd.classList.add('hi'); d.classList.add('hi'); }
       tp.appendChild(dt);
       tp.appendChild(d);
       tp.appendChild(dd);
@@ -1298,7 +1687,7 @@
     // Buttons
     document.getElementById('btn-prev').disabled = S.step === 0;
     document.getElementById('btn-next').disabled = S.step === scn.steps.length - 1;
-    document.getElementById('btn-play').textContent = S.playing ? '❚❚ PAUSE' : '▶ PLAY';
+    document.getElementById('btn-play').textContent = S.playing ? t(UI.btnPause) : t(UI.btnPlay);
 
     // Decoder values
     rowDecValue.textContent = st.rowAddr || '—';
@@ -1412,12 +1801,98 @@
     render();
   }
 
+  function setLanguage(lang) {
+    if (lang !== 'en' && lang !== 'ko') return;
+    if (S.lang === lang) return;
+    S.lang = lang;
+    try { localStorage.setItem('dram-lang', lang); } catch (_) {}
+    render();
+  }
+
+  // ---------- Tooltip for technical terms ----------
+  function setupTooltip() {
+    const tip = document.getElementById('tooltip');
+    if (!tip) return;
+    let hideTimer = null;
+
+    function show(target) {
+      const key = target.dataset.term;
+      const def = TERM_DEFS[key];
+      if (!def) return;
+      if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
+      tip.innerHTML = '';
+      const name = document.createElement('span');
+      name.className = 'tt-name';
+      name.textContent = def.name || key;
+      const body = document.createElement('span');
+      body.className = 'tt-body';
+      body.textContent = def[S.lang] || def.en;
+      tip.appendChild(name);
+      tip.appendChild(body);
+      // Position after content is set so we know its size
+      tip.classList.add('visible');
+      tip.setAttribute('aria-hidden', 'false');
+      position(target);
+    }
+
+    function position(target) {
+      const r = target.getBoundingClientRect();
+      const tr = tip.getBoundingClientRect();
+      const margin = 8;
+      let left = r.left + r.width / 2 - tr.width / 2;
+      let top = r.bottom + margin;
+      // Flip above if overflowing viewport bottom
+      if (top + tr.height > window.innerHeight - 8) {
+        top = r.top - tr.height - margin;
+      }
+      // Clamp horizontally
+      left = Math.max(8, Math.min(window.innerWidth - tr.width - 8, left));
+      tip.style.left = `${left}px`;
+      tip.style.top = `${top}px`;
+    }
+
+    function hide() {
+      hideTimer = setTimeout(() => {
+        tip.classList.remove('visible');
+        tip.setAttribute('aria-hidden', 'true');
+      }, 60);
+    }
+
+    // Event delegation — works for terms rendered later too
+    document.addEventListener('mouseover', e => {
+      const target = e.target.closest && e.target.closest('.term');
+      if (target) show(target);
+    });
+    document.addEventListener('mouseout', e => {
+      const target = e.target.closest && e.target.closest('.term');
+      if (target) hide();
+    });
+    document.addEventListener('focusin', e => {
+      const target = e.target.closest && e.target.closest('.term');
+      if (target) show(target);
+    });
+    document.addEventListener('focusout', e => {
+      const target = e.target.closest && e.target.closest('.term');
+      if (target) hide();
+    });
+    // Dismiss on scroll
+    window.addEventListener('scroll', () => {
+      tip.classList.remove('visible');
+    }, true);
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') tip.classList.remove('visible');
+    });
+  }
+
   // ---------- Wire up ----------
   function init() {
     buildSVG();
 
-    document.querySelectorAll('.tab').forEach(t => {
-      t.addEventListener('click', () => switchScenario(t.dataset.scenario));
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => switchScenario(tab.dataset.scenario));
+    });
+    document.querySelectorAll('.lang-btn').forEach(btn => {
+      btn.addEventListener('click', () => setLanguage(btn.dataset.lang));
     });
     document.getElementById('btn-reset').addEventListener('click', reset);
     document.getElementById('btn-prev').addEventListener('click', prev);
@@ -1434,9 +1909,11 @@
         case '1': switchScenario('read'); break;
         case '2': switchScenario('write'); break;
         case '3': switchScenario('refresh'); break;
+        case 'k': case 'K': setLanguage(S.lang === 'en' ? 'ko' : 'en'); break;
       }
     });
 
+    setupTooltip();
     render();
   }
 
