@@ -987,10 +987,10 @@
           op: { en: 'RD · col 0x6', ko: 'RD · column 0x6' },
           title: { en: 'RD — Column Select', ko: 'RD — column 선택' },
           desc: {
-            en: 'Controller issues <code>READ</code> with column address <code>0x6</code>. The column decoder selects column 6 from the row buffer; that value is routed to the internal read data path.',
-            ko: '컨트롤러가 column 주소 <code>0x6</code>과 함께 <code>READ</code>를 발행합니다. Column decoder가 row buffer에서 column 6을 선택하고, 그 값이 내부 read 데이터 경로로 전달됩니다.'
+            en: 'Controller issues <code>READ</code> with column address <code>0x6</code>. The column decoder selects column 6 from the row buffer and routes it to the internal read data path. External DQ pins remain idle — data only appears after <code>CL</code> cycles elapse.',
+            ko: '컨트롤러가 column 주소 <code>0x6</code>과 함께 <code>READ</code>를 발행합니다. Column decoder가 row buffer에서 column 6을 선택해 내부 read 데이터 경로로 전달합니다. 외부 DQ 핀은 아직 idle 상태 — <code>CL</code> 사이클이 지난 뒤에야 데이터가 실립니다.'
           },
-          state: { ...IDLE_STATE, wordlines: [TARGET_ROW], bitlines: 'all', hitCol: TARGET_COL, cellPhase: 'sensed', senseAmpPhase: 'reading', dqPhase: 'route', rowAddr: '0x3', colAddr: '0x6', bus: ['ACT', 'RD'] }
+          state: { ...IDLE_STATE, wordlines: [TARGET_ROW], bitlines: 'all', hitCol: TARGET_COL, cellPhase: 'sensed', senseAmpPhase: 'reading', rowAddr: '0x3', colAddr: '0x6', bus: ['ACT', 'RD'] }
         },
         {
           op: { en: 'CL · DQ burst', ko: 'CL · DQ burst' },
@@ -1056,8 +1056,17 @@
           op: { en: 'WR · col 0x6', ko: 'WR · column 0x6' },
           title: { en: 'WR — Write Command', ko: 'WR — 쓰기 명령' },
           desc: {
-            en: 'Controller issues <code>WRITE</code> with column <code>0x6</code> and drives new data onto DQ. After Write Latency (<code>CWL</code>) the write drivers overpower sense-amp column 6, forcing the new bit into the row buffer.',
-            ko: '컨트롤러가 column <code>0x6</code>과 함께 <code>WRITE</code>를 발행하고 새 데이터를 DQ에 실어 보냅니다. 쓰기 지연(<code>CWL</code>) 후에 쓰기 드라이버가 column 6의 sense amp를 압도하며 새 비트를 row buffer에 강제로 씁니다.'
+            en: 'Controller issues <code>WRITE</code> with column address <code>0x6</code>. The column decoder targets column 6 in the row buffer, but external DQ pins remain idle — the controller waits <code>CWL</code> cycles before driving data.',
+            ko: '컨트롤러가 column 주소 <code>0x6</code>과 함께 <code>WRITE</code>를 발행합니다. Column decoder가 row buffer의 column 6을 지정하지만, 외부 DQ 핀은 아직 idle — 컨트롤러는 <code>CWL</code> 사이클을 기다린 뒤에 데이터를 실어 보냅니다.'
+          },
+          state: { ...IDLE_STATE, wordlines: [TARGET_ROW], bitlines: 'all', hitCol: TARGET_COL, cellPhase: 'sensed', senseAmpPhase: 'latched', rowAddr: '0x3', colAddr: '0x6', bus: ['ACT', 'WR'] }
+        },
+        {
+          op: { en: 'CWL · DQ burst', ko: 'CWL · DQ burst' },
+          title: { en: 'CAS Write Latency → DQ Burst', ko: 'CAS Write Latency → DQ burst' },
+          desc: {
+            en: 'After Write Latency (<code>CWL</code> cycles from the WR command), the controller drives the burst onto the DQ pins. DDR4 uses <code>BL8</code> — eight beats over four clock cycles — and the write drivers overpower sense-amp column 6, forcing each new bit into the row buffer.',
+            ko: 'Write Latency(WR 명령부터 <code>CWL</code> 사이클) 후에 컨트롤러가 DQ 핀에 burst를 실어 보냅니다. DDR4는 <code>BL8</code>을 사용 — 4 클록 사이클 동안 8 비트 — 쓰기 드라이버가 column 6의 sense amp를 압도하며 새 비트를 row buffer에 강제로 씁니다.'
           },
           state: { ...IDLE_STATE, wordlines: [TARGET_ROW], bitlines: 'all', hitCol: TARGET_COL, cellPhase: 'sensed', senseAmpPhase: 'writing', dqPhase: 'incoming', rowAddr: '0x3', colAddr: '0x6', bus: ['ACT', 'WR'], highlightTiming: 'CWL' }
         },
@@ -1065,10 +1074,10 @@
           op: { en: 'CELL WRITE-BACK', ko: 'Cell write-back' },
           title: { en: 'Cell Update', ko: '셀 업데이트' },
           desc: {
-            en: 'Because word line 3 is still asserted, the overwritten sense-amp value flows back through the still-open access transistor and charges (or discharges) the target cell capacitor to its new value.',
-            ko: 'Word line 3이 여전히 활성 상태이기 때문에, 덮어쓴 sense amp 값이 여전히 열린 access transistor를 통해 다시 흘러 대상 셀 capacitor를 새 값으로 충전(또는 방전)합니다.'
+            en: 'The burst has completed and DQ is idle again. Because word line 3 is still asserted, the overwritten sense-amp value flows back through the still-open access transistor and charges (or discharges) the target cell capacitor to its new value.',
+            ko: 'Burst가 끝나 DQ는 다시 idle 상태입니다. Word line 3이 여전히 활성 상태이기 때문에, 덮어쓴 sense amp 값이 여전히 열린 access transistor를 통해 다시 흘러 대상 셀 capacitor를 새 값으로 충전(또는 방전)합니다.'
           },
-          state: { ...IDLE_STATE, wordlines: [TARGET_ROW], bitlines: 'all', hitCol: TARGET_COL, cellPhase: 'writing', senseAmpPhase: 'writing', dqPhase: 'incoming', rowAddr: '0x3', colAddr: '0x6', bus: ['ACT', 'WR'] }
+          state: { ...IDLE_STATE, wordlines: [TARGET_ROW], bitlines: 'all', hitCol: TARGET_COL, cellPhase: 'writing', senseAmpPhase: 'writing', rowAddr: '0x3', colAddr: '0x6', bus: ['ACT', 'WR'] }
         },
         {
           op: { en: 'tWR · recovery', ko: 'tWR · 복구' },
