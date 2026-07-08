@@ -677,6 +677,7 @@
       playing: false,
       timer: null,
       lang: localStorage.getItem("dram-lang") === "ko" ? "ko" : "en",
+      theme: localStorage.getItem("dram-theme") === "light" ? "light" : "dark",
     };
 
     // ---------- SVG build ----------
@@ -949,19 +950,20 @@
         }),
       );
 
-      // Column decoder box (top)
+      // Column decoder box (top) — label stacked above value, like the row decoder
+      const colBoxY = 6;
       colDecEl = el("rect", {
-        x: GRID_X + GRID_W / 2 - 60,
-        y: 10,
-        width: 120,
-        height: 32,
+        x: GRID_X + GRID_W / 2 - decW / 2,
+        y: colBoxY,
+        width: decW,
+        height: decH,
         class: "dec-box",
         rx: 2,
       });
       svg.appendChild(colDecEl);
       const colDecLabel = el("text", {
         x: GRID_X + GRID_W / 2,
-        y: 25,
+        y: colBoxY + decH / 2 - 4,
         class: "dec-label term",
         "text-anchor": "middle",
         id: "svg-col-dec-label",
@@ -971,16 +973,13 @@
       colDecLabel.textContent = "COL DEC";
       svg.appendChild(colDecLabel);
       colDecValue = el("text", {
-        x: GRID_X + GRID_W / 2 + 40,
-        y: 25,
+        x: GRID_X + GRID_W / 2,
+        y: colBoxY + decH / 2 + 12,
         class: "dec-value",
-        "text-anchor": "start",
+        "text-anchor": "middle",
       });
       colDecValue.textContent = "—";
       svg.appendChild(colDecValue);
-      // Move col label to fit
-      colDecLabel.setAttribute("x", GRID_X + GRID_W / 2 - 30);
-      colDecLabel.setAttribute("text-anchor", "start");
     }
 
     // ---------- Rendering ----------
@@ -1335,6 +1334,25 @@
       render();
     }
 
+    function applyTheme() {
+      const light = S.theme === "light";
+      document.documentElement.setAttribute("data-theme", S.theme);
+      const icon = document.getElementById("theme-icon");
+      // Show the theme you'll switch TO: sun in dark mode, moon in light mode.
+      if (icon) icon.textContent = light ? "☾" : "☀";
+      const btn = document.getElementById("theme-toggle");
+      if (btn) btn.setAttribute("aria-pressed", String(light));
+    }
+
+    function setTheme(theme) {
+      if (theme !== "light" && theme !== "dark") return;
+      S.theme = theme;
+      try {
+        localStorage.setItem("dram-theme", theme);
+      } catch (_) {}
+      applyTheme();
+    }
+
     // ---------- Tooltip for technical terms ----------
     function setupTooltip() {
       const tip = document.getElementById("tooltip");
@@ -1429,6 +1447,11 @@
       document.querySelectorAll(".lang-btn").forEach((btn) => {
         btn.addEventListener("click", () => setLanguage(btn.dataset.lang));
       });
+      document
+        .getElementById("theme-toggle")
+        .addEventListener("click", () =>
+          setTheme(S.theme === "light" ? "dark" : "light"),
+        );
       document.getElementById("btn-reset").addEventListener("click", reset);
       document.getElementById("btn-prev").addEventListener("click", prev);
       document.getElementById("btn-next").addEventListener("click", next);
@@ -1467,9 +1490,14 @@
           case "K":
             setLanguage(S.lang === "en" ? "ko" : "en");
             break;
+          case "t":
+          case "T":
+            setTheme(S.theme === "light" ? "dark" : "light");
+            break;
         }
       });
 
+      applyTheme();
       setupTooltip();
       render();
     }

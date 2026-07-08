@@ -14,11 +14,19 @@
     --read: #22d3ee;
     --write: #fbbf24;
     --refresh: #4ade80;
+    --read-rgb: 34, 211, 238;
+    --write-rgb: 251, 191, 36;
+    --refresh-rgb: 74, 222, 128;
     --hot: #f0faff;
     --danger: #f87171;
 
+    /* neutral tints that must invert between themes */
+    --tint-rgb: 255, 255, 255; /* white washes (hover, chips, code) */
+    --mesh-rgb: 140, 158, 210; /* background grid mesh */
+    --shadow: rgba(0, 0, 0, 0.6);
+
     --scn: var(--read);
-    --scn-rgb: 34, 211, 238;
+    --scn-rgb: var(--read-rgb);
 
     --font-sans:
       -apple-system, "SF Pro Text", "Segoe UI", "Inter", system-ui, sans-serif;
@@ -26,13 +34,40 @@
       ui-monospace, "SF Mono", "JetBrains Mono", "Menlo", "Consolas", monospace;
   }
 
+  /* LIGHT THEME — overrides the neutral palette; accents darken for contrast */
+  :root[data-theme="light"] {
+    --void: #eaeef6;
+    --panel-0: #ffffff;
+    --panel-1: #f6f8fd;
+    --panel-2: #eaeff8;
+    --panel-3: #dbe2f0;
+    --rule: rgba(56, 74, 128, 0.18);
+    --rule-2: rgba(56, 74, 128, 0.34);
+    --ink-1: #161d38;
+    --ink-2: #434c6c;
+    --ink-3: #646d8d;
+    --ink-4: #99a1bd;
+    --ink-5: #c3c9db;
+    --read: #0891b2;
+    --write: #c2740a;
+    --refresh: #16a34a;
+    --read-rgb: 8, 145, 178;
+    --write-rgb: 194, 116, 10;
+    --refresh-rgb: 22, 163, 74;
+    --hot: #0e1a36;
+    --danger: #dc2626;
+    --tint-rgb: 32, 44, 82;
+    --mesh-rgb: 96, 116, 170;
+    --shadow: rgba(30, 42, 82, 0.2);
+  }
+
   [data-scn="write"] {
     --scn: var(--write);
-    --scn-rgb: 251, 191, 36;
+    --scn-rgb: var(--write-rgb);
   }
   [data-scn="refresh"] {
     --scn: var(--refresh);
-    --scn-rgb: 74, 222, 128;
+    --scn-rgb: var(--refresh-rgb);
   }
 
   * {
@@ -75,8 +110,8 @@
     position: fixed;
     inset: 0;
     background-image:
-      linear-gradient(rgba(140, 158, 210, 0.025) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(140, 158, 210, 0.025) 1px, transparent 1px);
+      linear-gradient(rgba(var(--mesh-rgb), 0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(var(--mesh-rgb), 0.025) 1px, transparent 1px);
     background-size: 40px 40px;
     pointer-events: none;
     z-index: 0;
@@ -170,19 +205,21 @@
     background: transparent;
     color: var(--ink-3);
     border: 1px solid var(--rule);
-    border-right-width: 0;
+    margin-left: -1px;
     cursor: pointer;
     transition:
       color 0.3s,
-      background 0.3s;
+      background 0.3s,
+      border-color 0.3s;
     position: relative;
+    z-index: 0;
   }
-  .tab:last-child {
-    border-right-width: 1px;
+  .tab:first-child {
+    margin-left: 0;
   }
   .tab:hover {
     color: var(--ink-1);
-    background: rgba(255, 255, 255, 0.02);
+    background: rgba(var(--tint-rgb), 0.02);
   }
   .tab.active {
     color: var(--scn);
@@ -190,9 +227,6 @@
     box-shadow: inset 0 0 24px rgba(var(--scn-rgb), 0.06);
     border-color: var(--scn);
     z-index: 1;
-  }
-  .tab.active + .tab {
-    border-left-color: var(--scn);
   }
   .tab.active::after {
     content: "";
@@ -442,7 +476,7 @@
     font-family: var(--font-mono);
     font-size: 12.5px;
     color: var(--ink-1);
-    background: rgba(255, 255, 255, 0.04);
+    background: rgba(var(--tint-rgb), 0.04);
     padding: 1px 5px;
     border-radius: 2px;
   }
@@ -469,7 +503,7 @@
     border-radius: 2px;
     color: var(--ink-2);
     letter-spacing: 0.14em;
-    background: rgba(255, 255, 255, 0.02);
+    background: rgba(var(--tint-rgb), 0.02);
     transition: all 0.3s;
   }
   .cmd-chip.current {
@@ -546,7 +580,7 @@
   .ctrl:hover:not(:disabled) {
     color: var(--ink-1);
     border-color: var(--ink-3);
-    background: rgba(255, 255, 255, 0.03);
+    background: rgba(var(--tint-rgb), 0.03);
   }
   .ctrl:disabled {
     opacity: 0.35;
@@ -935,12 +969,37 @@
   }
   .lang-btn:hover {
     color: var(--ink-1);
-    background: rgba(255, 255, 255, 0.03);
+    background: rgba(var(--tint-rgb), 0.03);
   }
   .lang-btn.active {
     color: var(--scn);
     background: rgba(var(--scn-rgb), 0.12);
     box-shadow: inset 0 0 12px rgba(var(--scn-rgb), 0.08);
+  }
+
+  /* Theme (light / dark) toggle */
+  .theme-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    font-size: 14px;
+    line-height: 1;
+    background: transparent;
+    color: var(--ink-2);
+    border: 1px solid var(--rule-2);
+    border-radius: 2px;
+    cursor: pointer;
+    transition:
+      color 0.2s,
+      background 0.2s,
+      border-color 0.2s;
+  }
+  .theme-btn:hover {
+    color: var(--ink-1);
+    background: rgba(var(--tint-rgb), 0.04);
+    border-color: var(--scn);
   }
 
   /* Technical term tooltip trigger */
@@ -1006,7 +1065,7 @@
       opacity 0.15s ease,
       transform 0.15s ease;
     box-shadow:
-      0 12px 32px rgba(0, 0, 0, 0.6),
+      0 12px 32px var(--shadow),
       0 0 16px rgba(var(--scn-rgb), 0.25);
   }
   .tooltip.visible {
