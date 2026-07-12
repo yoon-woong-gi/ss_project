@@ -272,7 +272,7 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
-    min-height: 560px;
+    min-height: 680px;
     position: relative;
     overflow: hidden;
   }
@@ -335,7 +335,7 @@
   .grid-svg {
     width: 100%;
     height: 100%;
-    max-height: 520px;
+    max-height: 680px;
   }
 
   .stage-legend {
@@ -896,6 +896,313 @@
     fill: var(--ink-3);
     letter-spacing: 0.24em;
     text-transform: uppercase;
+  }
+
+  /* ---------- 1T1C detail schematic ---------- */
+  .d-title {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    fill: var(--scn);
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+  }
+  .d-axis {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    fill: var(--ink-3);
+    letter-spacing: 0.08em;
+  }
+  .d-wire {
+    stroke: var(--ink-3);
+    stroke-width: 1.6;
+    fill: none;
+  }
+  .d-bitline {
+    stroke: var(--ink-4);
+    stroke-width: 2;
+    transition: stroke 0.4s, filter 0.4s;
+  }
+  .d-bitline.on {
+    stroke: var(--hot);
+    filter: drop-shadow(0 0 4px var(--hot));
+  }
+  .d-bitline.nudge {
+    stroke: var(--scn);
+    stroke-width: 2.25;
+    filter: drop-shadow(0 0 3px rgba(var(--scn-rgb), 0.6));
+    animation: bl-nudge 1.6s ease-in-out infinite;
+  }
+  @keyframes bl-nudge {
+    0%, 100% { opacity: 0.55; }
+    50% { opacity: 1; }
+  }
+  /* bit-line voltage annotations (Vdd/2, Vdd, 0, ↑) */
+  .d-level {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    fill: var(--ink-3);
+    letter-spacing: 0.04em;
+    transition: fill 0.4s;
+  }
+  .d-level.up {
+    fill: var(--scn);
+  }
+  .d-wordline {
+    stroke: var(--ink-5);
+    stroke-width: 2.5;
+    transition: stroke 0.4s, filter 0.4s;
+  }
+  .d-wordline.on {
+    stroke: var(--scn);
+    filter: drop-shadow(0 0 5px var(--scn));
+  }
+  .d-gate {
+    stroke: var(--ink-4);
+    stroke-width: 3.5;
+    transition: stroke 0.4s;
+  }
+  .d-gate.on {
+    stroke: var(--scn);
+  }
+  .d-channel {
+    fill: var(--panel-2);
+    stroke: var(--ink-4);
+    stroke-width: 1;
+    transition: fill 0.4s, stroke 0.4s;
+  }
+  .d-channel.open {
+    fill: rgba(var(--scn-rgb), 0.35);
+    stroke: var(--scn);
+  }
+  .d-plate {
+    stroke: var(--ink-2);
+    stroke-width: 3;
+  }
+  .d-plate-charge {
+    stroke: var(--ink-5);
+    transition: stroke 0.5s, filter 0.5s;
+  }
+  .d-plate-charge.charged {
+    stroke: var(--hot);
+    filter: drop-shadow(0 0 6px var(--hot));
+  }
+  /* partially drained during charge-sharing / sensing (before restore) */
+  .d-plate-charge.shared {
+    stroke: var(--ink-3);
+    animation: cap-shared 1.6s ease-in-out infinite;
+  }
+  @keyframes cap-shared {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 0.6; }
+  }
+  .d-plate-charge.writing {
+    stroke: var(--write);
+    filter: drop-shadow(0 0 6px var(--write));
+    animation: cap-write-pulse 0.9s ease-in-out infinite;
+  }
+  .d-plate-charge.leak {
+    stroke: var(--danger);
+    animation: cap-leak 1.8s ease-in-out infinite;
+  }
+  @keyframes cap-write-pulse {
+    0%, 100% { opacity: 0.55; }
+    50% { opacity: 1; }
+  }
+  @keyframes cap-leak {
+    0% { opacity: 0.9; }
+    100% { opacity: 0.2; }
+  }
+  .d-sa-box {
+    fill: rgba(var(--scn-rgb), 0.015);
+    stroke: var(--rule-2);
+    stroke-width: 1;
+    stroke-dasharray: 5 4;
+    transition: stroke 0.4s, fill 0.4s;
+  }
+  .d-sa-box.on {
+    stroke: var(--scn);
+    fill: rgba(var(--scn-rgb), 0.05);
+  }
+  .d-rail {
+    stroke: var(--ink-5);
+    stroke-width: 1.25;
+    stroke-dasharray: 3 3;
+  }
+  .d-cross {
+    stroke: var(--ink-4);
+    stroke-width: 1.6;
+    transition: stroke 0.4s, filter 0.4s;
+  }
+  .d-node {
+    fill: var(--ink-4);
+    transition: fill 0.4s;
+  }
+  .d-sa.on .d-cross {
+    stroke: var(--scn);
+    filter: drop-shadow(0 0 4px var(--scn));
+  }
+  .d-sa.on .d-node {
+    fill: var(--hot);
+  }
+  .d-sa.writing .d-cross {
+    stroke: var(--write);
+    filter: drop-shadow(0 0 4px var(--write));
+  }
+  .d-sa.writing .d-node {
+    fill: var(--write);
+  }
+  .d-data-line {
+    stroke: var(--ink-5);
+    stroke-width: 2;
+    fill: none;
+    transition: stroke 0.4s, filter 0.4s;
+  }
+  .d-data-arrow {
+    fill: var(--ink-5);
+    transition: fill 0.4s, filter 0.4s;
+  }
+  .d-data-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    fill: var(--ink-4);
+    letter-spacing: 0.18em;
+    transition: fill 0.4s;
+  }
+  .d-data.out .d-data-line {
+    stroke: var(--scn);
+    filter: drop-shadow(0 0 4px var(--scn));
+  }
+  .d-data.out .d-data-arrow {
+    fill: var(--scn);
+    filter: drop-shadow(0 0 4px var(--scn));
+  }
+  .d-data.out .d-data-label {
+    fill: var(--scn);
+  }
+  .d-data.in .d-data-line,
+  .d-data.in .d-data-arrow {
+    stroke: var(--write);
+    fill: var(--write);
+    filter: drop-shadow(0 0 4px var(--write));
+  }
+  .d-data.in .d-data-label {
+    fill: var(--write);
+  }
+
+  /* ---------- DRAM sensing waveform (wordline / bitline / SAP / SAN / CSL) ---------- */
+  .wave-past {
+    fill: rgba(var(--scn-rgb), 0.05);
+  }
+  /* voltage level lines */
+  .wave-level {
+    stroke: var(--ink-4);
+    stroke-width: 1;
+  }
+  .wave-level.dash {
+    stroke: var(--ink-5);
+    stroke-dasharray: 4 4;
+  }
+  .wave-level-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    fill: var(--ink-3);
+    letter-spacing: 0.02em;
+  }
+  /* curves */
+  .wave-curve {
+    fill: none;
+    stroke: var(--ink-1);
+    stroke-width: 1.75;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+  }
+  .wave-curve.dash {
+    stroke-dasharray: 5 4;
+  }
+  .wave-bl {
+    stroke: var(--ink-3);
+  }
+  .wave-curve-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    fill: var(--ink-1);
+    letter-spacing: 0.02em;
+  }
+  .wave-curve-label.wave-bl {
+    fill: var(--ink-3);
+    stroke: none;
+  }
+  /* phase circles */
+  .wave-phase-circle {
+    fill: var(--panel-1);
+    stroke: var(--ink-2);
+    stroke-width: 1.25;
+  }
+  .wave-phase-num {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    fill: var(--ink-1);
+  }
+  /* phase arrows + labels */
+  .wave-phase-arrow {
+    stroke: var(--ink-3);
+    stroke-width: 1.5;
+    transition: stroke 0.35s;
+  }
+  .wave-phase-arrow.hi {
+    stroke: var(--scn);
+    filter: drop-shadow(0 0 4px var(--scn));
+  }
+  .wave-phase-head {
+    fill: var(--ink-3);
+    transition: fill 0.35s;
+  }
+  .wave-phase-head.hi {
+    fill: var(--scn);
+    filter: drop-shadow(0 0 4px var(--scn));
+  }
+  .wave-phase-label {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    font-weight: 500;
+    fill: var(--ink-2);
+    letter-spacing: 0.04em;
+    transition: fill 0.35s;
+  }
+  .wave-phase-label.hi {
+    fill: var(--scn);
+    font-weight: 700;
+  }
+  /* tRCD / tRAS / tRP brackets */
+  .wave-brk {
+    stroke: var(--ink-4);
+    stroke-width: 1;
+    transition: stroke 0.35s;
+  }
+  .wave-brk.hi {
+    stroke: var(--scn);
+    stroke-width: 1.5;
+    filter: drop-shadow(0 0 4px var(--scn));
+  }
+  .wave-brk-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    fill: var(--ink-3);
+    letter-spacing: 0.04em;
+    transition: fill 0.35s;
+  }
+  .wave-brk-label.hi {
+    fill: var(--scn);
+    font-weight: 600;
+  }
+  .wave-playhead {
+    stroke: var(--scn);
+    stroke-width: 1.5;
+    stroke-dasharray: 3 3;
+    opacity: 0.8;
+    filter: drop-shadow(0 0 4px var(--scn));
   }
 
   /* Ambient scan sweep on stage */

@@ -15,6 +15,140 @@
     const SA_Y = GRID_Y + GRID_H + 42; // sense amp row Y
     const DQ_Y = SA_Y + 62; // DQ bus Y
 
+    // ---------- Sensing-waveform geometry (bottom of stage) ----------
+    // Faithful reproduction of the classic DRAM sensing diagram:
+    // wordline / bitline / SAP / SAN / CSL voltages across
+    // Precharge · Access · Sense · Restore · Precharge, with tRCD/tRAS/tRP.
+    const WAVE_X0 = 172;
+    const WAVE_X1 = 858;
+    const WAVE_W = WAVE_X1 - WAVE_X0;
+    const waveX = (f) => WAVE_X0 + f * WAVE_W;
+    const G_VCCVT = 470; // Vcc + Vt (boosted word line)
+    const G_VCC = 492; // Vcc
+    const G_VREF = 524; // Vcc/2 (precharge reference)
+    const G_GND = 566; // Gnd baseline
+    const G_PHASE = 584; // phase arrow row
+    const G_BRK1 = 604; // tRCD / tRP bracket row
+    const G_BRK2 = 622; // tRAS bracket row
+    const gLevel = {
+      vt: G_VCCVT,
+      vcc: G_VCC,
+      ref: G_VREF,
+      bump: G_VREF - 9, // small charge-sharing rise above Vcc/2
+      gnd: G_GND,
+    };
+
+    // Static curve / phase / bracket data (shared by all scenarios).
+    const SENSE = {
+      phases: [
+        { name: "Precharge", x0: 0, x1: 0.14 },
+        { name: "Access", x0: 0.14, x1: 0.36 },
+        { name: "Sense", x0: 0.36, x1: 0.56 },
+        { name: "Restore", x0: 0.56, x1: 0.82 },
+        { name: "Precharge", x0: 0.82, x1: 1.0 },
+      ],
+      circles: [
+        { x: 0.07, n: 0 },
+        { x: 0.3, n: 1 },
+        { x: 0.46, n: 2 },
+        { x: 0.68, n: 3 },
+      ],
+      curves: [
+        {
+          cls: "wave-wl",
+          label: "wordline",
+          lx: 0.19,
+          ly: (G_VREF + G_VCC) / 2 - 2,
+          a: [
+            [0, "gnd"],
+            [0.16, "gnd"],
+            [0.3, "vt"],
+            [0.84, "vt"],
+            [0.9, "gnd"],
+            [1, "gnd"],
+          ],
+        },
+        {
+          cls: "wave-bl",
+          label: "Bitline",
+          lx: 0.4,
+          ly: G_VREF - 12,
+          dash: true,
+          a: [
+            [0, "ref"],
+            [0.14, "ref"],
+            [0.3, "bump"],
+            [0.4, "bump"],
+            [0.5, "vcc"],
+            [0.84, "vcc"],
+            [0.9, "ref"],
+            [1, "ref"],
+          ],
+        },
+        {
+          cls: "wave-sap",
+          label: "SAP",
+          lx: 0.58,
+          ly: G_VCC + 4,
+          a: [
+            [0, "ref"],
+            [0.4, "ref"],
+            [0.54, "vcc"],
+            [0.84, "vcc"],
+            [0.9, "ref"],
+            [1, "ref"],
+          ],
+        },
+        {
+          cls: "wave-san",
+          label: "SAN",
+          lx: 0.45,
+          ly: G_VREF + 18,
+          a: [
+            [0, "ref"],
+            [0.4, "ref"],
+            [0.54, "gnd"],
+            [0.84, "gnd"],
+            [0.9, "ref"],
+            [1, "ref"],
+          ],
+        },
+        {
+          cls: "wave-csl",
+          label: "CSL",
+          lx: 0.76,
+          ly: G_VCC + 4,
+          a: [
+            [0, "gnd"],
+            [0.62, "gnd"],
+            [0.72, "vcc"],
+            [0.84, "vcc"],
+            [0.9, "gnd"],
+            [1, "gnd"],
+          ],
+        },
+      ],
+      brackets: [
+        { key: "tRCD", x0: 0.14, x1: 0.56, label: "tRCD", row: 0 },
+        { key: "tRAS", x0: 0.14, x1: 0.82, label: "tRAS", row: 1 },
+        { key: "tRP", x0: 0.82, x1: 1.0, label: "tRP", row: 0 },
+      ],
+      levels: [
+        { y: G_VCCVT, label: "Vcc+Vt", dash: true },
+        { y: G_VCC, label: "Vcc", dash: true },
+        { y: G_VREF, label: "(Vref) Vcc/2", dash: false },
+        { y: G_GND, label: "Gnd", dash: false },
+      ],
+    };
+
+    // ---------- 1T1C detail-view geometry ----------
+    const D_BL = 372; // bit line BL x
+    const D_BLB = 588; // bit line BL/ x
+    const D_TOP = 74; // top of bit lines
+    const D_WL = 128; // word line y
+    const D_SA_T = 250; // sense-amp box top
+    const D_SA_B = 392; // sense-amp box bottom
+
     const cellX = (c) => GRID_X + c * STRIDE_X;
     const cellY = (r) => GRID_Y + r * STRIDE_Y;
     const cellCX = (c) => cellX(c) + CELL_W / 2;
@@ -49,6 +183,9 @@
       read: {
         label: { en: "READ", ko: "읽기" },
         color: "read",
+        // Playhead position per step, mapped onto the sensing phases
+        // (Precharge · Access · Sense · Restore · Precharge).
+        wave: { pos: [0.07, 0.2, 0.3, 0.46, 0.66, 0.7, 0.76, 0.9] },
         profile: {
           en: "DDR4-3200 · JEDEC 22-22-22-52",
           ko: "DDR4-3200 · JEDEC 22-22-22-52",
@@ -90,8 +227,8 @@
             op: { en: "IDLE", ko: "유휴" },
             title: { en: "Precharged / Idle", ko: "Precharge 상태 / 유휴" },
             desc: {
-              en: "Bank is in the precharged state — every bit line is held at <code>Vdd/2</code> by the precharge equalisers, and no word line is asserted. The row buffer is empty; no column can be accessed until a row is opened.",
-              ko: "Bank가 precharge 상태입니다 — 모든 bit line이 precharge equalizer에 의해 <code>Vdd/2</code>로 유지되며, 어떤 word line도 활성화되어 있지 않습니다. Row buffer는 비어 있고, row가 열리기 전까지는 어떤 column도 접근할 수 없습니다.",
+              en: "The bank is idle. Every bit line sits at <code>Vdd/2</code> and no word line is on. A row must be opened before any column can be read.",
+              ko: "Bank가 idle 상태입니다. 모든 bit line은 <code>Vdd/2</code>에 있고 켜진 word line은 없습니다. 어떤 column을 읽으려면 먼저 row를 열어야 합니다.",
             },
             state: { ...IDLE_STATE },
           },
@@ -99,8 +236,8 @@
             op: { en: "ACT · row 0x3", ko: "ACT · row 0x3" },
             title: { en: "ACT — Row Activate", ko: "ACT — row 활성화" },
             desc: {
-              en: "Controller drives <code>ACTIVATE</code> on the command bus with a bank + row address. Word line <code>0x3</code> rises to the boosted voltage <code>Vpp</code>; every access transistor in row 3 turns on.",
-              ko: "컨트롤러가 명령 버스에 bank + row 주소와 함께 <code>ACTIVATE</code>를 인가합니다. Word line <code>0x3</code>이 부스트 전압 <code>Vpp</code>까지 올라가며, row 3의 모든 access transistor가 켜집니다.",
+              en: "The controller sends <code>ACTIVATE</code> with a row address. Word line <code>0x3</code> rises to the boosted voltage <code>Vpp</code>, turning on every transistor in row 3.",
+              ko: "컨트롤러가 row 주소와 함께 <code>ACTIVATE</code>를 보냅니다. Word line <code>0x3</code>이 부스트 전압 <code>Vpp</code>까지 올라가며 row 3의 모든 transistor를 켭니다.",
             },
             state: {
               ...IDLE_STATE,
@@ -111,32 +248,32 @@
             },
           },
           {
-            op: { en: "ACT · charge sharing", ko: "ACT · 전하 공유" },
+            op: { en: "SENSE · charge sharing", ko: "SENSE · 전하 공유" },
             title: { en: "Charge Sharing", ko: "전하 공유" },
             desc: {
-              en: "Each cell capacitor (~25 fF) shares its charge with the much larger bit-line capacitance. Every bit line drifts a few tens of millivolts above or below <code>Vdd/2</code> — the direction encodes the stored bit for that column.",
-              ko: "각 셀 capacitor(~25 fF)가 훨씬 큰 bit line capacitance와 전하를 공유합니다. 모든 bit line이 <code>Vdd/2</code> 위 또는 아래로 수십 밀리볼트 정도 움직이며 — 그 방향이 해당 column에 저장된 비트를 나타냅니다.",
+              en: "Now we zoom into one cell. <code>BL</code> and <code>BL/</code> were both precharged to <code>Vdd/2</code>. With word line 3 on, the storage capacitor shares its charge with BL: a stored <code>1</code> pulls BL a little <em>above</em> Vdd/2, a stored <code>0</code> a little <em>below</em>. BL/ is left untouched at Vdd/2 as the reference.",
+              ko: "이제 셀 하나를 확대해서 보겠습니다. <code>BL</code>과 <code>BL/</code>은 둘 다 <code>Vdd/2</code>로 precharge된 상태입니다. Word line 3이 켜지면 셀 capacitor가 BL과 전하를 나눠 갖습니다 — 셀에 <code>1</code>이 들어 있으면 BL이 Vdd/2보다 살짝 <em>올라가고</em>, <code>0</code>이면 살짝 <em>내려갑니다</em>. BL/는 그대로 Vdd/2에 두고 비교 기준으로 씁니다.",
             },
             state: {
               ...IDLE_STATE,
+              view: "detail",
               wordlines: [TARGET_ROW],
-              bitlines: "all",
               cellPhase: "sharing",
               rowAddr: "0x3",
               bus: ["ACT"],
             },
           },
           {
-            op: { en: "SENSE / RESTORE", ko: "센싱 / 복원" },
-            title: { en: "Sense & Restore", ko: "센싱 및 복원" },
+            op: { en: "SENSE · amplify", ko: "SENSE · 증폭" },
+            title: { en: "Sense & Amplify", ko: "센싱 및 증폭" },
             desc: {
-              en: "Sense amplifiers detect the differential, latch it, and drive each bit line to full rail (<code>0</code> or <code>Vdd</code>). Because word line 3 is still asserted, the same drive restores full charge into every cell of the row — the row buffer is now valid. Interval from ACT to this point is <code>tRCD</code>.",
-              ko: "Sense amp가 차동 신호를 감지하고 래치한 뒤, 각 bit line을 완전한 레벨(<code>0</code> 또는 <code>Vdd</code>)로 구동합니다. Word line 3이 여전히 활성 상태이므로 동일한 구동이 row의 모든 셀에 전하를 복원합니다 — 이제 row buffer가 유효합니다. ACT부터 이 지점까지의 간격이 <code>tRCD</code>입니다.",
+              en: "The sense amp is a cross-coupled latch. It compares BL against the BL/ reference and amplifies that tiny gap — developing the higher line all the way up to <code>Vdd</code> and the lower one down to <code>0</code>. The stored bit is now a clean full-rail level. ACT to here is <code>tRCD</code>.",
+              ko: "Sense amp는 교차 결합(cross-coupled) 래치입니다. 기준선인 BL/와 BL을 맞대어 이 작은 차이를 크게 키웁니다 — 높은 쪽은 <code>Vdd</code>까지, 낮은 쪽은 <code>0</code>까지 develop합니다. 이제 비트가 확실한 레벨로 살아납니다. ACT부터 여기까지가 <code>tRCD</code>입니다.",
             },
             state: {
               ...IDLE_STATE,
+              view: "detail",
               wordlines: [TARGET_ROW],
-              bitlines: "all",
               cellPhase: "sensed",
               senseAmpPhase: "latched",
               rowAddr: "0x3",
@@ -145,18 +282,35 @@
             },
           },
           {
+            op: { en: "SENSE · restore", ko: "SENSE · 복원" },
+            title: { en: "Restore", ko: "복원" },
+            desc: {
+              en: "Sensing actually wrecks the stored value — sharing charge left the capacitor sitting near <code>Vdd/2</code>. But word line 3 is still on, so the now full-rail BL flows back through the transistor and tops the capacitor back up to its original value. The cell ends up exactly as it was, ready to be read again.",
+              ko: "사실 값을 읽는 순간 셀 값은 한 번 망가집니다 — 전하를 나누느라 capacitor가 <code>Vdd/2</code> 근처까지 떨어졌거든요. 하지만 word line 3이 아직 켜져 있어서, 완전한 레벨로 커진 BL이 transistor를 타고 다시 흘러 들어가 capacitor를 원래 값으로 채워 줍니다. 그래서 셀은 원래 상태로 되돌아오고, 다시 읽을 수 있습니다.",
+            },
+            state: {
+              ...IDLE_STATE,
+              view: "detail",
+              wordlines: [TARGET_ROW],
+              cellPhase: "restore",
+              senseAmpPhase: "latched",
+              rowAddr: "0x3",
+              bus: ["ACT"],
+            },
+          },
+          {
             op: { en: "RD · col 0x6", ko: "RD · column 0x6" },
             title: { en: "RD — Column Select", ko: "RD — column 선택" },
             desc: {
-              en: "Controller issues <code>READ</code> with column address <code>0x6</code>. The column decoder selects column 6 from the row buffer and routes it to the internal read data path. External DQ pins remain idle — data only appears after <code>CL</code> cycles elapse.",
-              ko: "컨트롤러가 column 주소 <code>0x6</code>과 함께 <code>READ</code>를 발행합니다. Column decoder가 row buffer에서 column 6을 선택해 내부 read 데이터 경로로 전달합니다. 외부 DQ 핀은 아직 idle 상태 — <code>CL</code> 사이클이 지난 뒤에야 데이터가 실립니다.",
+              en: "The controller sends <code>READ</code> with column address <code>0x6</code>. The column decoder picks column 6 and connects it to the read path. The data itself only comes out after <code>CL</code>.",
+              ko: "컨트롤러가 column 주소 <code>0x6</code>과 함께 <code>READ</code>를 보냅니다. Column decoder가 column 6을 골라 읽기 경로에 이어 줍니다. 실제 데이터는 <code>CL</code>만큼 지난 뒤에야 나옵니다.",
             },
             state: {
               ...IDLE_STATE,
               wordlines: [TARGET_ROW],
               bitlines: "all",
               hitCol: TARGET_COL,
-              cellPhase: "sensed",
+              cellPhase: "restore",
               senseAmpPhase: "reading",
               rowAddr: "0x3",
               colAddr: "0x6",
@@ -164,18 +318,18 @@
             },
           },
           {
-            op: { en: "CL · DQ burst", ko: "CL · DQ burst" },
-            title: { en: "CAS Latency → DQ Burst", ko: "CAS 지연 → DQ burst" },
+            op: { en: "CL · data out", ko: "CL · 데이터 출력" },
+            title: { en: "CL → Data Out", ko: "CL → 데이터 출력" },
             desc: {
-              en: "After CAS latency (<code>CL</code> clock cycles from the RD command), the burst begins on the DQ pins — data captured on both clock edges. DDR4 uses <code>BL8</code>: eight beats over four clock cycles.",
-              ko: "CAS 지연(RD 명령부터 <code>CL</code> 클록 사이클) 후에 DQ 핀에 burst가 시작됩니다 — 클록의 상승/하강 엣지 모두에서 데이터가 캡처됩니다. DDR4는 <code>BL8</code>을 사용 — 4 클록 사이클 동안 8 비트.",
+              en: "After <code>CL</code>, the selected data leaves the cell and heads out to the controller.",
+              ko: "<code>CL</code>이 지나면 고른 데이터가 셀에서 빠져나와 컨트롤러로 전달됩니다.",
             },
             state: {
               ...IDLE_STATE,
               wordlines: [TARGET_ROW],
               bitlines: "all",
               hitCol: TARGET_COL,
-              cellPhase: "sensed",
+              cellPhase: "restore",
               senseAmpPhase: "reading",
               dqPhase: "burst",
               rowAddr: "0x3",
@@ -188,8 +342,8 @@
             op: { en: "PRE", ko: "PRE" },
             title: { en: "PRE — Precharge", ko: "PRE — Precharge" },
             desc: {
-              en: "<code>PRECHARGE</code> closes the row. Word line 3 drops, then the equalisers pull bit lines back to <code>Vdd/2</code>. After <code>tRP</code> the bank is ready for another ACT — to the same or a different row.",
-              ko: "<code>PRECHARGE</code>가 row를 닫습니다. Word line 3이 떨어진 뒤, equalizer가 bit line을 다시 <code>Vdd/2</code>로 되돌립니다. <code>tRP</code>가 지나면 bank는 동일한 또는 다른 row에 대한 새 ACT를 받을 준비가 됩니다.",
+              en: "<code>PRECHARGE</code> closes the row. Word line 3 drops and the bit lines return to <code>Vdd/2</code>. After <code>tRP</code> the bank is ready for another ACT.",
+              ko: "<code>PRECHARGE</code>가 row를 닫습니다. Word line 3이 내려가고 bit line이 다시 <code>Vdd/2</code>로 돌아갑니다. <code>tRP</code>가 지나면 bank는 다음 ACT를 받을 수 있습니다.",
             },
             state: {
               ...IDLE_STATE,
@@ -203,6 +357,11 @@
       write: {
         label: { en: "WRITE", ko: "쓰기" },
         color: "write",
+        // Playhead per step on the shared sensing diagram; the appended
+        // leak/refresh steps park on the final Precharge / Restore phases.
+        wave: {
+          pos: [0.07, 0.2, 0.48, 0.66, 0.7, 0.74, 0.78, 0.88, 0.92, 0.72],
+        },
         profile: {
           en: "DDR4-3200 · JEDEC (CWL16)",
           ko: "DDR4-3200 · JEDEC (CWL16)",
@@ -238,14 +397,26 @@
             desc: { en: "PRE → next ACT", ko: "PRE → 다음 ACT" },
             key: "tRP",
           },
+          {
+            name: "tREFW",
+            value: { en: "64 ms", ko: "64 ms" },
+            desc: { en: "retention window", ko: "유지 시간" },
+            key: "tREFW",
+          },
+          {
+            name: "tREFI",
+            value: { en: "7.8 μs", ko: "7.8 μs" },
+            desc: { en: "avg REF interval", ko: "평균 REF 간격" },
+            key: "tREFI",
+          },
         ],
         steps: [
           {
             op: { en: "IDLE", ko: "유휴" },
             title: { en: "Precharged / Idle", ko: "Precharge 상태 / 유휴" },
             desc: {
-              en: "Bank precharged. Bit lines at <code>Vdd/2</code>, no word line asserted. Any write must first open the target row — DRAM has no per-cell write path independent of the row buffer.",
-              ko: "Bank가 precharge된 상태입니다. Bit line은 <code>Vdd/2</code>에 있고, 활성화된 word line은 없습니다. 쓰기를 위해서는 먼저 대상 row를 열어야 합니다 — DRAM은 row buffer와 독립적인 셀 단위 쓰기 경로가 없습니다.",
+              en: "The bank is idle. Bit lines at <code>Vdd/2</code>, no word line on. A write also needs the target row opened first.",
+              ko: "Bank가 idle 상태입니다. Bit line은 <code>Vdd/2</code>에 있고 켜진 word line은 없습니다. 쓰기도 먼저 대상 row를 열어야 합니다.",
             },
             state: { ...IDLE_STATE },
           },
@@ -253,8 +424,8 @@
             op: { en: "ACT · row 0x3", ko: "ACT · row 0x3" },
             title: { en: "ACT — Row Activate", ko: "ACT — row 활성화" },
             desc: {
-              en: "Controller issues <code>ACTIVATE</code> with row <code>0x3</code>. Word line 3 rises; every access transistor in the row turns on. Identical to the read path — DRAM does not distinguish read vs. write during activation.",
-              ko: "컨트롤러가 row <code>0x3</code>과 함께 <code>ACTIVATE</code>를 발행합니다. Word line 3이 올라가고, 해당 row의 모든 access transistor가 켜집니다. 읽기 경로와 동일합니다 — DRAM은 활성화 단계에서 읽기와 쓰기를 구분하지 않습니다.",
+              en: "The controller sends <code>ACTIVATE</code> with row <code>0x3</code>. Word line 3 rises and every transistor in the row turns on — exactly the same as a read. Activation is identical whether a read or a write follows.",
+              ko: "컨트롤러가 row <code>0x3</code>과 함께 <code>ACTIVATE</code>를 보냅니다. Word line 3이 올라가고 row의 모든 transistor가 켜집니다 — 읽기와 완전히 동일합니다. 활성화는 뒤에 읽기가 오든 쓰기가 오든 같습니다.",
             },
             state: {
               ...IDLE_STATE,
@@ -265,17 +436,17 @@
             },
           },
           {
-            op: { en: "ACT · sense / restore", ko: "ACT · 센싱 / 복원" },
-            title: { en: "Row Buffer Populated", ko: "Row buffer 로드 완료" },
+            op: { en: "SENSE · row open", ko: "SENSE · row 열기" },
+            title: { en: "Sense & Restore", ko: "센싱 및 복원" },
             desc: {
-              en: "Charge sharing followed by sense amplification — same physics as a read. The entire row is now latched in the sense amps. Only after this can a column be modified.",
-              ko: "전하 공유 후 센스 증폭 — 읽기와 동일한 물리 과정입니다. 이제 전체 row가 sense amp에 래치되어 있습니다. 이 단계 이후에만 column을 수정할 수 있습니다.",
+              en: "Same physics as a read. With word line 3 on, <code>BL</code> develops from <code>Vdd/2</code> to a full rail and the sense amp latches — and restores — the cell's current value. Only once the cell is held open like this can its column be overwritten. ACT to here is <code>tRCD</code>.",
+              ko: "읽을 때와 똑같은 원리입니다. Word line 3이 켜진 상태에서 <code>BL</code>이 <code>Vdd/2</code>에서 완전한 레벨까지 develop되고, sense amp가 셀의 지금 값을 붙잡아(그리고 복원해) 둡니다. 이렇게 셀이 열린 채로 유지돼야 해당 column을 덮어쓸 수 있습니다. ACT부터 여기까지가 <code>tRCD</code>입니다.",
             },
             state: {
               ...IDLE_STATE,
+              view: "detail",
               wordlines: [TARGET_ROW],
-              bitlines: "all",
-              cellPhase: "sensed",
+              cellPhase: "restore",
               senseAmpPhase: "latched",
               rowAddr: "0x3",
               bus: ["ACT"],
@@ -286,15 +457,15 @@
             op: { en: "WR · col 0x6", ko: "WR · column 0x6" },
             title: { en: "WR — Write Command", ko: "WR — 쓰기 명령" },
             desc: {
-              en: "Controller issues <code>WRITE</code> with column address <code>0x6</code>. The column decoder targets column 6 in the row buffer, but external DQ pins remain idle — the controller waits <code>CWL</code> cycles before driving data.",
-              ko: "컨트롤러가 column 주소 <code>0x6</code>과 함께 <code>WRITE</code>를 발행합니다. Column decoder가 row buffer의 column 6을 지정하지만, 외부 DQ 핀은 아직 idle — 컨트롤러는 <code>CWL</code> 사이클을 기다린 뒤에 데이터를 실어 보냅니다.",
+              en: "The controller sends <code>WRITE</code> with column address <code>0x6</code>. The column decoder targets column 6, and the controller waits <code>CWL</code> before the new data arrives.",
+              ko: "컨트롤러가 column 주소 <code>0x6</code>과 함께 <code>WRITE</code>를 보냅니다. Column decoder가 column 6을 지정하고, 컨트롤러는 <code>CWL</code>만큼 기다렸다가 새 데이터를 보냅니다.",
             },
             state: {
               ...IDLE_STATE,
               wordlines: [TARGET_ROW],
               bitlines: "all",
               hitCol: TARGET_COL,
-              cellPhase: "sensed",
+              cellPhase: "restore",
               senseAmpPhase: "latched",
               rowAddr: "0x3",
               colAddr: "0x6",
@@ -302,21 +473,21 @@
             },
           },
           {
-            op: { en: "CWL · DQ burst", ko: "CWL · DQ burst" },
+            op: { en: "CWL · data in", ko: "CWL · 데이터 입력" },
             title: {
-              en: "CAS Write Latency → DQ Burst",
-              ko: "CAS Write Latency → DQ burst",
+              en: "CWL → Data In",
+              ko: "CWL → 데이터 입력",
             },
             desc: {
-              en: "After Write Latency (<code>CWL</code> cycles from the WR command), the controller drives the burst onto DQ. The write drivers overpower sense-amp column 6, forcing each incoming bit into the row buffer. DDR4 uses <code>BL8</code>: eight beats over four clock cycles.",
-              ko: "Write Latency(WR 명령부터 <code>CWL</code> 사이클) 후에 컨트롤러가 DQ에 burst를 실어 보냅니다. Write driver가 column 6의 sense amp를 압도하며 들어오는 각 비트를 row buffer에 강제로 씁니다. DDR4는 <code>BL8</code>을 사용 — 4 클록 사이클 동안 8 비트.",
+              en: "After <code>CWL</code>, the new data arrives and is written into the selected column 6.",
+              ko: "<code>CWL</code>이 지나면 새 데이터가 도착해 고른 column 6 자리에 채워집니다.",
             },
             state: {
               ...IDLE_STATE,
               wordlines: [TARGET_ROW],
               bitlines: "all",
               hitCol: TARGET_COL,
-              cellPhase: "sensed",
+              cellPhase: "restore",
               senseAmpPhase: "writing",
               dqPhase: "incoming",
               rowAddr: "0x3",
@@ -329,8 +500,8 @@
             op: { en: "CELL WRITE-BACK", ko: "Cell write-back" },
             title: { en: "Cell Update", ko: "셀 업데이트" },
             desc: {
-              en: "The burst has completed and DQ is idle again. Because word line 3 is still asserted, the overwritten sense-amp value flows back through the still-open access transistor and charges (or discharges) the target cell capacitor to its new value.",
-              ko: "Burst가 끝나 DQ는 다시 idle 상태입니다. Word line 3이 여전히 활성 상태이기 때문에, 덮어쓴 sense amp 값이 여전히 열린 access transistor를 통해 다시 흘러 대상 셀 capacitor를 새 값으로 충전(또는 방전)합니다.",
+              en: "Word line 3 is still on, so the new value flows back through the transistor and charges the cell capacitor to its new state.",
+              ko: "Word line 3이 아직 켜져 있어 새 값이 transistor를 통해 다시 흘러 셀 capacitor를 새 상태로 채웁니다.",
             },
             state: {
               ...IDLE_STATE,
@@ -348,15 +519,15 @@
             op: { en: "tWR · recovery", ko: "tWR · 복구" },
             title: { en: "Write Recovery", ko: "쓰기 복구" },
             desc: {
-              en: "After the last write beat, the DRAM needs <code>tWR</code> (≈15 ns typical) to fully charge the cell before the row can be closed. Issuing PRE too early risks an incomplete write and lost data.",
-              ko: "마지막 쓰기 비트 이후, DRAM은 row를 닫기 전에 셀을 완전히 충전하기 위해 <code>tWR</code>(일반적으로 ≈15 ns)이 필요합니다. PRE를 너무 일찍 발행하면 불완전한 쓰기와 데이터 손실 위험이 있습니다.",
+              en: "The cell needs a little time — <code>tWR</code> — to charge fully before the row can be closed. Closing too early risks losing the write.",
+              ko: "셀이 완전히 충전되려면 잠깐의 시간 <code>tWR</code>이 필요하며, 그 전에 row를 닫으면 쓰기를 잃을 수 있습니다.",
             },
             state: {
               ...IDLE_STATE,
               wordlines: [TARGET_ROW],
               bitlines: "all",
               hitCol: TARGET_COL,
-              cellPhase: "sensed",
+              cellPhase: "restore",
               senseAmpPhase: "latched",
               rowAddr: "0x3",
               colAddr: "0x6",
@@ -368,8 +539,8 @@
             op: { en: "PRE", ko: "PRE" },
             title: { en: "PRE — Precharge", ko: "PRE — Precharge" },
             desc: {
-              en: "<code>PRECHARGE</code> closes the row. Word line 3 drops, then bit lines are equalised back to <code>Vdd/2</code>. After <code>tRP</code> the bank is available for another ACT.",
-              ko: "<code>PRECHARGE</code>가 row를 닫습니다. Word line 3이 떨어진 뒤, bit line이 <code>Vdd/2</code>로 equalize됩니다. <code>tRP</code>가 지나면 bank에 새로운 ACT를 발행할 수 있습니다.",
+              en: "<code>PRECHARGE</code> closes the row and the bit lines return to <code>Vdd/2</code>. After <code>tRP</code> the bank is free again. The new data now lives in the cell capacitor.",
+              ko: "<code>PRECHARGE</code>가 row를 닫고 bit line이 <code>Vdd/2</code>로 돌아갑니다. <code>tRP</code> 후 bank는 다시 자유롭습니다. 새 데이터는 이제 셀 capacitor에 저장되어 있습니다.",
             },
             state: {
               ...IDLE_STATE,
@@ -377,138 +548,40 @@
               highlightTiming: "tRP",
             },
           },
-        ],
-      },
-
-      refresh: {
-        label: { en: "REFRESH", ko: "REFRESH" },
-        color: "refresh",
-        profile: {
-          en: "DDR4 · Auto-Refresh (JEDEC)",
-          ko: "DDR4 · Auto-Refresh (JEDEC)",
-        },
-        timings: [
           {
-            name: "tREFI",
-            value: { en: "7.8 μs", ko: "7.8 μs" },
-            desc: { en: "avg REF interval", ko: "평균 REF 간격" },
-            key: "tREFI",
-          },
-          {
-            name: "tREFW",
-            value: { en: "64 ms", ko: "64 ms" },
-            desc: { en: "retention window", ko: "유지 시간" },
-            key: "tREFW",
-          },
-          {
-            name: "tRFC",
-            value: { en: "~350 ns · ~560 cyc", ko: "~350 ns · ~560 cyc" },
-            desc: { en: "REF cycle time", ko: "REF 사이클 시간" },
-            key: "tRFC",
-          },
-          {
-            name: "REF/W",
-            value: { en: "8192", ko: "8192" },
-            desc: { en: "REFs per window", ko: "윈도우당 REF 수" },
-            key: null,
-            valueKey: "REF/W",
-          },
-          {
-            name: "tRP",
-            value: { en: "22 cyc · 13.75 ns", ko: "22 cyc · 13.75 ns" },
-            desc: { en: "internal PRE", ko: "내부 PRE" },
-            key: null,
-          },
-        ],
-        steps: [
-          {
-            op: { en: "IDLE · all banks PRE", ko: "유휴 · 모든 bank PRE" },
-            title: { en: "All Banks Precharged", ko: "모든 bank Precharge" },
+            op: { en: "RETENTION", ko: "유지 (leak)" },
+            title: { en: "Charge Leaks Away", ko: "전하 누설" },
             desc: {
-              en: "<code>REF</code> requires every bank to be precharged — nothing may be open. The DRAM maintains an internal refresh counter that names the next row group to refresh; the controller never supplies a row address.",
-              ko: "<code>REF</code>는 모든 bank가 precharge되어 있어야 합니다 — 열려 있는 row가 없어야 합니다. DRAM은 다음에 refresh할 row 그룹을 가리키는 내부 refresh 카운터를 유지하며, 컨트롤러는 row 주소를 제공하지 않습니다.",
-            },
-            state: { ...IDLE_STATE },
-          },
-          {
-            op: { en: "tREFI · REF due", ko: "tREFI · REF 시점" },
-            title: { en: "Refresh Interval Elapsed", ko: "Refresh 간격 도달" },
-            desc: {
-              en: "On average every <code>tREFI</code> the controller must issue a REF. Cells only hold charge for the retention window <code>tREFW</code>, so the required REF count per window = tREFW / tREFI. DDR4 uses 64 ms / 7.8 μs ≈ 8192 REFs per window — enough to cover every row exactly once.",
-              ko: "평균적으로 <code>tREFI</code>마다 컨트롤러는 REF를 발행해야 합니다. 셀은 유지 시간(<code>tREFW</code>) 동안만 전하를 유지하므로, window당 필요한 REF 횟수 = tREFW / tREFI. DDR4 기준 64 ms / 7.8 μs ≈ 8192번의 REF가 window 안에서 모든 row를 정확히 한 번씩 커버합니다.",
-            },
-            state: { ...IDLE_STATE, highlightTiming: "tREFI" },
-          },
-          {
-            op: { en: "REF", ko: "REF" },
-            title: {
-              en: "REF — Auto-Refresh Command",
-              ko: "REF — 자동 Refresh 명령",
-            },
-            desc: {
-              en: "Controller drives <code>REFRESH</code> on the command bus. No row address accompanies it — the DRAM alone decides which rows to refresh next, using its internal counter.",
-              ko: "컨트롤러가 명령 버스에 <code>REFRESH</code>를 인가합니다. Row 주소는 함께 오지 않으며 — DRAM이 내부 카운터를 사용해 다음에 refresh할 row를 스스로 결정합니다.",
-            },
-            state: { ...IDLE_STATE, bus: ["REF"] },
-          },
-          {
-            op: { en: "REF · internal ACT", ko: "REF · 내부 ACT" },
-            title: { en: "Internal Row Activation", ko: "내부 row 활성화" },
-            desc: {
-              en: "The DRAM internally asserts the word lines pointed to by its counter. Access transistors turn on and charge sharing begins — a full activation, but driven from within the die rather than by an external ACT.",
-              ko: "DRAM이 내부적으로 카운터가 가리키는 word line을 활성화합니다. Access transistor가 켜지고 전하 공유가 시작됩니다 — 완전한 활성화이지만 외부 ACT가 아닌 die 내부에서 구동됩니다.",
+              en: "The cell capacitor is tiny, so its charge slowly leaks away. Left alone, the stored bit would fade within the retention window <code>tREFW</code> (about 64 ms).",
+              ko: "셀 capacitor는 매우 작아 전하가 서서히 새어 나갑니다. 그대로 두면 저장된 비트는 유지 시간 <code>tREFW</code>(약 64 ms) 안에 사라집니다.",
             },
             state: {
               ...IDLE_STATE,
-              wordlines: [1, 2, 3],
-              cellPhase: "refresh",
-              rowAddr: "⟳",
-              bus: ["REF"],
+              cellPhase: "leak",
+              rowAddr: "0x3",
+              colAddr: "0x6",
+              bus: [],
+              highlightTiming: "tREFW",
             },
           },
           {
-            op: { en: "REF · sense / restore", ko: "REF · 센싱 / 복원" },
-            title: { en: "Sense & Restore", ko: "센싱 및 복원" },
+            op: { en: "REF · refresh", ko: "REF · refresh" },
+            title: { en: "REF — Refresh Restores It", ko: "REF — Refresh 복원" },
             desc: {
-              en: "Sense amps latch the row and drive bit lines to full rail, restoring charge into every cell in the addressed rows. This is the entire purpose of refresh: halting the exponential decay of the storage capacitors before data is lost.",
-              ko: "Sense amp가 row를 래치하고 bit line을 완전한 레벨로 구동하여, 지정된 row의 모든 셀에 전하를 복원합니다. 이것이 refresh의 전체 목적입니다: 데이터가 손실되기 전에 저장 capacitor의 지수적 감쇠를 멈추는 것.",
+              en: "Before that happens, the DRAM refreshes the row on its own: it opens the row, the sense amps develop it again, and full charge is written back into the cell. This repeats about every <code>tREFI</code>, so the data is never lost.",
+              ko: "그 전에 DRAM이 스스로 row를 refresh합니다: row를 열고 sense amp가 다시 develop해 셀에 전하를 가득 채워 넣습니다. 이 과정이 약 <code>tREFI</code>마다 반복되어 데이터는 사라지지 않습니다.",
             },
             state: {
               ...IDLE_STATE,
-              wordlines: [1, 2, 3],
+              wordlines: [TARGET_ROW],
               bitlines: "all",
               cellPhase: "refresh",
               senseAmpPhase: "latched",
-              rowAddr: "⟳",
+              rowAddr: "0x3",
+              colAddr: "0x6",
               bus: ["REF"],
+              highlightTiming: "tREFI",
             },
-          },
-          {
-            op: { en: "REF · PRE + advance", ko: "REF · PRE + 진행" },
-            title: {
-              en: "Precharge & Counter Advance",
-              ko: "Precharge 및 카운터 진행",
-            },
-            desc: {
-              en: "The DRAM precharges the refreshed rows internally and advances its refresh counter. Many DDR4 devices refresh multiple rows per REF command, amortising the fixed per-command overhead.",
-              ko: "DRAM은 refresh된 row를 내부적으로 precharge하고 refresh 카운터를 진행시킵니다. 많은 DDR4 장치는 REF 명령당 여러 row를 refresh하여 명령당 고정 오버헤드를 분산시킵니다.",
-            },
-            state: {
-              ...IDLE_STATE,
-              wordlines: [4, 5, 6],
-              cellPhase: "refresh",
-              rowAddr: "⟳+",
-              bus: ["REF"],
-            },
-          },
-          {
-            op: { en: "REF · complete", ko: "REF · 완료" },
-            title: { en: "tRFC Elapsed", ko: "tRFC 경과" },
-            desc: {
-              en: 'After <code>tRFC</code>, REF completes and normal commands can resume. The next REF should be issued around <code>tREFI</code>, but the JEDEC <span class="term" data-term="REFbudget">pooling budget</span> lets the controller postpone or pull-in up to 8 REFs relative to the average schedule. Drift beyond that eats into retention margin, and eventually data is lost. DDR4 8 Gb dies use tRFC ≈ 350 ns.',
-              ko: '<code>tRFC</code> 후에 REF가 완료되고 일반 명령을 다시 시작할 수 있습니다. 다음 REF는 평균적으로 <code>tREFI</code> 근처에 발행되어야 하지만, JEDEC의 <span class="term" data-term="REFbudget">pooling budget</span> 덕분에 컨트롤러는 평균 스케줄 대비 최대 8개의 REF를 미리 또는 지연 발행할 수 있습니다. 그 이상 벗어나면 유지 마진이 소진되고 결국 데이터가 손실됩니다. DDR4 8 Gb 다이 기준 tRFC ≈ 350 ns.',
-            },
-            state: { ...IDLE_STATE, bus: ["REF"], highlightTiming: "tRFC" },
           },
         ],
       },
@@ -562,8 +635,8 @@
       },
       ACT: {
         name: "ACT · Activate",
-        en: "Row-activate command. Raises the target word line so every access transistor in that row turns on; the sense amps then latch the row into the row buffer. Only one row per bank can be active at a time.",
-        ko: "Row 활성화 명령. 대상 word line을 올려 해당 row의 모든 access transistor를 켜고, sense amp가 그 row를 row buffer로 래치합니다. Bank당 한 번에 하나의 row만 활성화될 수 있습니다.",
+        en: "Row-activate command. Raises the target word line so every transistor in that row turns on; the sense amps then latch the row into the row buffer. Only one row per bank can be active at a time.",
+        ko: "Row 활성화 명령. 대상 word line을 올려 해당 row의 모든 transistor를 켜고, sense amp가 그 row를 row buffer로 래치합니다. Bank당 한 번에 하나의 row만 활성화될 수 있습니다.",
       },
       PRE: {
         name: "PRE · Precharge",
@@ -637,7 +710,7 @@
       },
       Vpp: {
         name: "Vpp · Boosted Word-Line Voltage",
-        en: "A voltage higher than Vdd used to fully turn on the access transistors so the cell capacitor can be charged to a full Vdd level rather than Vdd − Vth.",
+        en: "A voltage higher than Vdd used to fully turn on the transistors so the cell capacitor can be charged to a full Vdd level rather than Vdd − Vth.",
         ko: "Vdd보다 높은 전압. Access transistor를 완전히 켜서 셀 커패시터가 Vdd − Vth가 아닌 온전한 Vdd 레벨까지 충전될 수 있게 합니다.",
       },
       DQ: {
@@ -647,8 +720,8 @@
       },
       "ROW DEC": {
         name: "Row Decoder",
-        en: "Circuit that decodes the row address on the command bus into a single word-line select, driving that word line to Vpp on ACT so every access transistor in the row turns on. One row decoder per bank.",
-        ko: "Command bus로 들어온 row 주소를 디코딩해 하나의 word line을 선택하는 회로. ACT 시 그 word line을 Vpp까지 구동해 해당 row의 모든 access transistor를 켭니다. Bank당 하나씩 존재.",
+        en: "Circuit that decodes the row address on the command bus into a single word-line select, driving that word line to Vpp on ACT so every transistor in the row turns on. One row decoder per bank.",
+        ko: "Command bus로 들어온 row 주소를 디코딩해 하나의 word line을 선택하는 회로. ACT 시 그 word line을 Vpp까지 구동해 해당 row의 모든 transistor를 켭니다. Bank당 하나씩 존재.",
       },
       "COL DEC": {
         name: "Column Decoder",
@@ -696,6 +769,8 @@
     const saEls = []; // sense amp per col
     let dqBusEl, dqLabelEl, dqParticleEl;
     let rowDecEl, rowDecValue, colDecEl, colDecValue;
+    let gOverview, gDetail, gWave; // layer groups
+    let detail = {}; // 1T1C detail-view element refs
 
     function buildSVG() {
       svg.innerHTML = "";
@@ -980,6 +1055,540 @@
       });
       colDecValue.textContent = "—";
       svg.appendChild(colDecValue);
+
+      // Wrap everything built so far into the "array overview" layer.
+      gOverview = el("g", { id: "g-overview" });
+      while (svg.firstChild) gOverview.appendChild(svg.firstChild);
+      svg.appendChild(gOverview);
+
+      // Build the zoomed 1T1C detail layer (hidden until a column is selected).
+      buildDetail();
+
+      // Container for the timing waveform strip (rebuilt each render).
+      gWave = el("g", { id: "g-wave" });
+      svg.appendChild(gWave);
+    }
+
+    // ---------- 1T1C detail schematic (images.png-style) ----------
+    function buildDetail() {
+      gDetail = el("g", { id: "g-detail" });
+      gDetail.style.display = "none";
+
+      const capTopY = D_WL + 34;
+
+      // Title
+      detail.title = el("text", {
+        x: (D_BL + D_BLB) / 2,
+        y: 44,
+        class: "d-title",
+        "text-anchor": "middle",
+      });
+      detail.title.textContent = "CELL · 1T1C";
+      gDetail.appendChild(detail.title);
+
+      // Bit-line labels
+      const blLabel = el("text", {
+        x: D_BL,
+        y: D_TOP - 10,
+        class: "d-axis",
+        "text-anchor": "middle",
+      });
+      blLabel.textContent = "BL";
+      gDetail.appendChild(blLabel);
+      const blbLabel = el("text", {
+        x: D_BLB,
+        y: D_TOP - 10,
+        class: "d-axis",
+        "text-anchor": "middle",
+      });
+      blbLabel.textContent = "BL/";
+      gDetail.appendChild(blbLabel);
+
+      // Bit-line voltage-level annotations (Vdd/2, ↑/↓, Vdd, 0)
+      detail.blV = el("text", {
+        x: D_BL - 14,
+        y: D_TOP + 20,
+        class: "d-level",
+        "text-anchor": "end",
+      });
+      gDetail.appendChild(detail.blV);
+      detail.blbV = el("text", {
+        x: D_BLB + 14,
+        y: D_TOP + 20,
+        class: "d-level",
+        "text-anchor": "start",
+      });
+      gDetail.appendChild(detail.blbV);
+
+      // Bit lines
+      detail.bl = el("line", {
+        x1: D_BL,
+        y1: D_TOP,
+        x2: D_BL,
+        y2: D_SA_T,
+        class: "d-bitline",
+      });
+      detail.blb = el("line", {
+        x1: D_BLB,
+        y1: D_TOP,
+        x2: D_BLB,
+        y2: D_SA_T,
+        class: "d-bitline",
+      });
+      gDetail.appendChild(detail.bl);
+      gDetail.appendChild(detail.blb);
+
+      // Word line (horizontal) + label
+      detail.wl = el("line", {
+        x1: 250,
+        y1: D_WL,
+        x2: 470,
+        y2: D_WL,
+        class: "d-wordline",
+      });
+      gDetail.appendChild(detail.wl);
+      const wlLabel = el("text", {
+        x: 240,
+        y: D_WL + 4,
+        class: "d-axis",
+        "text-anchor": "end",
+      });
+      wlLabel.textContent = "WL";
+      gDetail.appendChild(wlLabel);
+
+      // Access transistor on BL (simple MOS-as-switch symbol)
+      detail.trans = el("g", { class: "d-trans" });
+      // source stub from BL, drain stub toward capacitor
+      detail.trans.appendChild(
+        el("line", { x1: D_BL, y1: D_WL, x2: D_BL, y2: D_WL, class: "d-wire" }),
+      );
+      // horizontal channel from BL to cap node
+      detail.trans.appendChild(
+        el("line", {
+          x1: D_BL,
+          y1: capTopY,
+          x2: 420,
+          y2: capTopY,
+          class: "d-wire",
+        }),
+      );
+      // gate bar (driven by WL)
+      detail.transGate = el("line", {
+        x1: 406,
+        y1: capTopY - 14,
+        x2: 406,
+        y2: capTopY + 14,
+        class: "d-gate",
+      });
+      // gate stub up to WL
+      detail.trans.appendChild(
+        el("line", { x1: 406, y1: D_WL, x2: 406, y2: capTopY - 14, class: "d-wire" }),
+      );
+      // channel break to show the switch
+      detail.channel = el("rect", {
+        x: 411,
+        y: capTopY - 9,
+        width: 9,
+        height: 18,
+        class: "d-channel",
+      });
+      detail.trans.appendChild(detail.channel);
+      detail.trans.appendChild(detail.transGate);
+      gDetail.appendChild(detail.trans);
+
+      // Capacitor Cc + Vcp
+      const capX = 452;
+      detail.cap = el("g", { class: "d-cap" });
+      detail.cap.appendChild(
+        el("line", { x1: 420, y1: capTopY, x2: capX, y2: capTopY, class: "d-wire" }),
+      );
+      // top plate
+      detail.cap.appendChild(
+        el("line", {
+          x1: capX,
+          y1: capTopY - 12,
+          x2: capX,
+          y2: capTopY + 12,
+          class: "d-plate",
+        }),
+      );
+      // bottom plate (charge indicator)
+      detail.capPlate = el("line", {
+        x1: capX + 10,
+        y1: capTopY - 12,
+        x2: capX + 10,
+        y2: capTopY + 12,
+        class: "d-plate d-plate-charge",
+      });
+      detail.cap.appendChild(detail.capPlate);
+      // to Vcp
+      detail.cap.appendChild(
+        el("line", {
+          x1: capX + 10,
+          y1: capTopY,
+          x2: capX + 40,
+          y2: capTopY,
+          class: "d-wire",
+        }),
+      );
+      const ccLabel = el("text", {
+        x: capX + 5,
+        y: capTopY - 20,
+        class: "d-axis",
+        "text-anchor": "middle",
+      });
+      ccLabel.textContent = "Cc";
+      detail.cap.appendChild(ccLabel);
+      const vcpLabel = el("text", {
+        x: capX + 46,
+        y: capTopY + 4,
+        class: "d-axis",
+        "text-anchor": "start",
+      });
+      vcpLabel.textContent = "Vcp";
+      detail.cap.appendChild(vcpLabel);
+      gDetail.appendChild(detail.cap);
+
+      // Sense-amp box (cross-coupled latch, stylized)
+      detail.saBox = el("rect", {
+        x: 296,
+        y: D_SA_T,
+        width: D_BLB - D_BL + 200,
+        height: D_SA_B - D_SA_T,
+        rx: 4,
+        class: "d-sa-box",
+      });
+      // recenter the box around the two bit lines
+      detail.saBox.setAttribute("x", D_BL - 92);
+      detail.saBox.setAttribute("width", D_BLB - D_BL + 184);
+      gDetail.appendChild(detail.saBox);
+      const saLabel = el("text", {
+        x: D_BL - 92 + 8,
+        y: D_SA_T + 18,
+        class: "d-axis",
+        "text-anchor": "start",
+      });
+      saLabel.textContent = "SA";
+      gDetail.appendChild(saLabel);
+
+      // SAP / SAN rails
+      const midY = (D_SA_T + D_SA_B) / 2;
+      const sapY = D_SA_T + 26;
+      const sanY = D_SA_B - 26;
+      ["SAP", "SAN"].forEach((nm, i) => {
+        const y = i === 0 ? sapY : sanY;
+        gDetail.appendChild(
+          el("line", {
+            x1: D_BL - 40,
+            y1: y,
+            x2: D_BLB + 40,
+            y2: y,
+            class: "d-rail",
+          }),
+        );
+        const lbl = el("text", {
+          x: (D_BL + D_BLB) / 2,
+          y: i === 0 ? y - 6 : y + 14,
+          class: "d-axis",
+          "text-anchor": "middle",
+        });
+        lbl.textContent = nm;
+        gDetail.appendChild(lbl);
+      });
+
+      // Cross-coupled inverter pair, drawn as two crossing links
+      detail.sa = el("g", { class: "d-sa" });
+      // BL node down into box, BL/ node down into box
+      detail.sa.appendChild(
+        el("line", { x1: D_BL, y1: D_SA_T, x2: D_BL, y2: sanY, class: "d-wire" }),
+      );
+      detail.sa.appendChild(
+        el("line", { x1: D_BLB, y1: D_SA_T, x2: D_BLB, y2: sanY, class: "d-wire" }),
+      );
+      // cross links (clear X — the cross-coupled pair)
+      const xh = 24;
+      detail.sa.appendChild(
+        el("line", {
+          x1: D_BL,
+          y1: midY - xh,
+          x2: D_BLB,
+          y2: midY + xh,
+          class: "d-cross",
+        }),
+      );
+      detail.sa.appendChild(
+        el("line", {
+          x1: D_BLB,
+          y1: midY - xh,
+          x2: D_BL,
+          y2: midY + xh,
+          class: "d-cross",
+        }),
+      );
+      // transistor nodes (dots)
+      [
+        [D_BL, midY],
+        [D_BLB, midY],
+      ].forEach(([cx, cy]) => {
+        detail.sa.appendChild(el("circle", { cx, cy, r: 3.5, class: "d-node" }));
+      });
+      gDetail.appendChild(detail.sa);
+
+      // Data I/O arrow (abstract "data in / out") below the SA box
+      detail.dataGroup = el("g", { class: "d-data" });
+      detail.dataLine = el("line", {
+        x1: D_BLB + 40,
+        y1: D_SA_B + 24,
+        x2: D_BLB + 150,
+        y2: D_SA_B + 24,
+        class: "d-data-line",
+      });
+      detail.dataArrow = el("polygon", {
+        points: `${D_BLB + 150},${D_SA_B + 24} ${D_BLB + 140},${D_SA_B + 19} ${D_BLB + 140},${D_SA_B + 29}`,
+        class: "d-data-arrow",
+      });
+      detail.dataLabel = el("text", {
+        x: D_BLB + 40,
+        y: D_SA_B + 14,
+        class: "d-data-label",
+        "text-anchor": "start",
+      });
+      detail.dataLabel.textContent = "DATA";
+      // stub from SA box to the data line
+      detail.dataGroup.appendChild(
+        el("line", {
+          x1: D_BLB,
+          y1: D_SA_B,
+          x2: D_BLB,
+          y2: D_SA_B + 24,
+          class: "d-data-line",
+        }),
+      );
+      detail.dataGroup.appendChild(
+        el("line", {
+          x1: D_BLB,
+          y1: D_SA_B + 24,
+          x2: D_BLB + 40,
+          y2: D_SA_B + 24,
+          class: "d-data-line",
+        }),
+      );
+      detail.dataGroup.appendChild(detail.dataLine);
+      detail.dataGroup.appendChild(detail.dataArrow);
+      detail.dataGroup.appendChild(detail.dataLabel);
+      gDetail.appendChild(detail.dataGroup);
+
+      svg.appendChild(gDetail);
+    }
+
+    // ---------- 1T1C detail render ----------
+    function renderDetail(st) {
+      // Title: ROW shown once resolved, COL appended once a column is selected.
+      let title = "CELL · 1T1C";
+      if (st.rowAddr && st.rowAddr !== "—") {
+        title = `CELL · ROW ${st.rowAddr}`;
+        if (st.colAddr && st.colAddr !== "—") title += ` / COL ${st.colAddr}`;
+      }
+      detail.title.textContent = title;
+
+      const rowOpen = st.wordlines && st.wordlines.length > 0;
+      const phase = st.cellPhase;
+      const sharing = phase === "sharing";
+      const writing = phase === "writing" || st.senseAmpPhase === "writing";
+      const leaking = phase === "leak";
+      // SA is developing once its phase is set (charge-sharing precedes that).
+      const developed = st.senseAmpPhase && st.senseAmpPhase !== "idle";
+
+      // Word line + transistor (on whenever the row is open)
+      classSet(detail.wl, "on", rowOpen);
+      classSet(detail.transGate, "on", rowOpen);
+      classSet(detail.channel, "open", rowOpen);
+
+      // Bit lines: small nudge during charge sharing, full rails once developed
+      detail.bl.className.baseVal =
+        "d-bitline" + (developed ? " on" : sharing ? " nudge" : "");
+      detail.blb.className.baseVal = "d-bitline" + (developed ? " on" : "");
+
+      // Bit-line voltage annotations
+      let blv = "",
+        blbv = "";
+      if (sharing) {
+        blv = "Vdd/2 ↑";
+        blbv = "Vdd/2";
+      } else if (!writing && developed) {
+        blv = "Vdd";
+        blbv = "0";
+      }
+      detail.blV.textContent = blv;
+      detail.blbV.textContent = blbv;
+      classSet(detail.blV, "up", sharing);
+
+      // Capacitor charge: sharing/amplify = partly drained, restore/held = full
+      detail.capPlate.className.baseVal = "d-plate d-plate-charge";
+      if (writing) detail.capPlate.classList.add("writing");
+      else if (leaking) detail.capPlate.classList.add("leak");
+      else if (sharing || phase === "sensed")
+        detail.capPlate.classList.add("shared");
+      else if (rowOpen || phase === "restore" || phase === "refresh")
+        detail.capPlate.classList.add("charged");
+
+      // Sense amp box active once developing
+      classSet(detail.saBox, "on", developed);
+      detail.sa.className.baseVal = "d-sa" + (developed ? " on" : "");
+      if (writing) detail.sa.classList.add("writing");
+
+      // Data arrow: out on read burst, in on write
+      const dg = detail.dataGroup;
+      dg.className.baseVal = "d-data";
+      if (st.dqPhase === "burst") dg.classList.add("out");
+      else if (st.dqPhase === "incoming") dg.classList.add("in");
+      detail.dataLabel.textContent =
+        st.dqPhase === "incoming" ? "DATA IN" : "DATA OUT";
+      // Arrowhead points toward the cell for incoming, outward for outgoing.
+      const ay = D_SA_B + 24;
+      if (st.dqPhase === "incoming") {
+        detail.dataArrow.setAttribute(
+          "points",
+          `${D_BLB + 44},${ay} ${D_BLB + 56},${ay - 5} ${D_BLB + 56},${ay + 5}`,
+        );
+      } else {
+        detail.dataArrow.setAttribute(
+          "points",
+          `${D_BLB + 150},${ay} ${D_BLB + 140},${ay - 5} ${D_BLB + 140},${ay + 5}`,
+        );
+      }
+    }
+
+    // ---------- Timing waveform render ----------
+    function renderWave(scn, st) {
+      const w = scn.wave;
+      gWave.innerHTML = "";
+      if (!w) return;
+
+      const line = (x1, y1, x2, y2, cls) =>
+        gWave.appendChild(el("line", { x1, y1, x2, y2, class: cls || "wave-level" }));
+      const text = (x, y, cls, anchor, str) => {
+        const t = el("text", { x, y, class: cls, "text-anchor": anchor });
+        t.textContent = str;
+        gWave.appendChild(t);
+        return t;
+      };
+
+      const px = waveX(w.pos[S.step] != null ? w.pos[S.step] : 0);
+      // which phase is the playhead in (for label highlight)?
+      const curPhase = SENSE.phases.findIndex(
+        (p) => w.pos[S.step] >= p.x0 && w.pos[S.step] < p.x1,
+      );
+
+      // ---- progress shade up to the playhead ----
+      gWave.appendChild(
+        el("rect", {
+          x: WAVE_X0,
+          y: G_VCCVT - 10,
+          width: Math.max(0, px - WAVE_X0),
+          height: G_GND - G_VCCVT + 20,
+          class: "wave-past",
+        }),
+      );
+
+      // ---- voltage level lines + left labels ----
+      SENSE.levels.forEach((lv) => {
+        line(
+          WAVE_X0,
+          lv.y,
+          WAVE_X1,
+          lv.y,
+          "wave-level" + (lv.dash ? " dash" : ""),
+        );
+        text(WAVE_X0 - 12, lv.y + 4, "wave-level-label", "end", lv.label);
+      });
+
+      // ---- curves ----
+      SENSE.curves.forEach((cv) => {
+        let d = "";
+        cv.a.forEach((pt, i) => {
+          const x = waveX(pt[0]);
+          const y = gLevel[pt[1]];
+          if (i === 0) {
+            d = `M ${x} ${y}`;
+            return;
+          }
+          const pprev = cv.a[i - 1];
+          const pxc = waveX(pprev[0]);
+          const pyc = gLevel[pprev[1]];
+          if (Math.abs(pyc - y) < 0.5) {
+            d += ` L ${x.toFixed(1)} ${y}`;
+          } else {
+            const dx = (x - pxc) * 0.4;
+            d += ` C ${(pxc + dx).toFixed(1)} ${pyc} ${(x - dx).toFixed(1)} ${y} ${x.toFixed(1)} ${y}`;
+          }
+        });
+        gWave.appendChild(
+          el("path", { d, class: "wave-curve " + cv.cls + (cv.dash ? " dash" : "") }),
+        );
+        text(waveX(cv.lx), cv.ly, "wave-curve-label " + cv.cls, "middle", cv.label);
+      });
+
+      // ---- phase circles on the Vref line ----
+      SENSE.circles.forEach((c) => {
+        const x = waveX(c.x);
+        gWave.appendChild(
+          el("circle", { cx: x, cy: G_VREF, r: 9, class: "wave-phase-circle" }),
+        );
+        text(x, G_VREF + 4, "wave-phase-num", "middle", String(c.n));
+      });
+
+      // ---- playhead ----
+      gWave.appendChild(
+        el("line", {
+          x1: px,
+          y1: G_VCCVT - 10,
+          x2: px,
+          y2: G_GND + 4,
+          class: "wave-playhead",
+        }),
+      );
+
+      // ---- phase arrows + labels below Gnd ----
+      SENSE.phases.forEach((p, i) => {
+        const x0 = waveX(p.x0) + 6;
+        const x1 = waveX(p.x1) - 6;
+        const on = i === curPhase;
+        const cls = "wave-phase-arrow" + (on ? " hi" : "");
+        line(x0, G_PHASE, x1 - 6, G_PHASE, cls);
+        gWave.appendChild(
+          el("polygon", {
+            points: `${x1},${G_PHASE} ${x1 - 7},${G_PHASE - 4} ${x1 - 7},${G_PHASE + 4}`,
+            class: "wave-phase-head" + (on ? " hi" : ""),
+          }),
+        );
+        text(
+          (x0 + x1) / 2,
+          G_PHASE + 15,
+          "wave-phase-label" + (on ? " hi" : ""),
+          "middle",
+          p.name,
+        );
+      });
+
+      // ---- tRCD / tRAS / tRP brackets ----
+      SENSE.brackets.forEach((b) => {
+        const y = b.row === 1 ? G_BRK2 : G_BRK1;
+        const x0 = waveX(b.x0);
+        const x1 = waveX(b.x1);
+        const on = st.highlightTiming === b.key;
+        const cls = "wave-brk" + (on ? " hi" : "");
+        line(x0, y, x1, y, cls);
+        line(x0, y - 4, x0, y, cls);
+        line(x1, y - 4, x1, y, cls);
+        text(
+          (x0 + x1) / 2,
+          y + 12,
+          "wave-brk-label" + (on ? " hi" : ""),
+          "middle",
+          b.label,
+        );
+      });
     }
 
     // ---------- Rendering ----------
@@ -1094,9 +1703,6 @@
       document.getElementById("tab-read").textContent = t(scenarios.read.label);
       document.getElementById("tab-write").textContent = t(
         scenarios.write.label,
-      );
-      document.getElementById("tab-refresh").textContent = t(
-        scenarios.refresh.label,
       );
 
       // Tabs active
@@ -1224,7 +1830,8 @@
             g.classList.add("hit");
           } else if (rowActive) {
             if (st.cellPhase === "sharing") g.classList.add("sharing");
-            else if (st.cellPhase === "sensed") g.classList.add("sensed");
+            else if (st.cellPhase === "sensed" || st.cellPhase === "restore")
+              g.classList.add("sensed");
             else if (st.cellPhase === "writing") g.classList.add("writing");
             else if (st.cellPhase === "refresh") g.classList.add("refresh");
             else g.classList.add("wl");
@@ -1268,6 +1875,17 @@
           p.setAttribute("cx", GRID_X - 4 + i * 18),
         );
       }
+
+      // Detail (zoomed 1T1C) vs. array-overview layer.
+      // Once a column is resolved we switch to the single-cell schematic.
+      const showDetail =
+        st.view === "detail" || (st.colAddr && st.colAddr !== "—");
+      gOverview.style.display = showDetail ? "none" : "";
+      gDetail.style.display = showDetail ? "" : "none";
+      if (showDetail) renderDetail(st);
+
+      // Timing waveform strip (always visible).
+      renderWave(scn, st);
     }
 
     // ---------- Controls ----------
@@ -1482,9 +2100,6 @@
             break;
           case "2":
             switchScenario("write");
-            break;
-          case "3":
-            switchScenario("refresh");
             break;
           case "k":
           case "K":
