@@ -1670,11 +1670,23 @@
       const step = scn.steps[S.step];
       const st = step.state;
 
-      // Root scenario + language for CSS accent variable
+      // Root scenario + language for CSS accent variable. Set data-scn on
+      // the root too so the floating tooltip (a sibling of .app) picks up
+      // the scenario accent instead of the default READ color.
       const app = document.querySelector(".app");
       app.setAttribute("data-scn", S.scenario);
       app.setAttribute("data-lang", S.lang);
+      document.documentElement.setAttribute("data-scn", S.scenario);
       document.documentElement.lang = S.lang;
+
+      // Dismiss any lingering tooltip: navigating rebuilds the step DOM and
+      // destroys the hovered element without firing mouseout, which would
+      // otherwise leave the tooltip stuck on screen covering the text.
+      const tip = document.getElementById("tooltip");
+      if (tip) {
+        tip.classList.remove("visible");
+        tip.setAttribute("aria-hidden", "true");
+      }
 
       // Language toggle button state
       document.querySelectorAll(".lang-btn").forEach((b) => {
