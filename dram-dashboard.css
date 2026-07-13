@@ -1398,6 +1398,10 @@
         "footer" auto
         / 1fr;
     }
+    .stage,
+    .side {
+      min-width: 0;
+    }
     .hdr {
       flex-wrap: wrap;
       gap: 16px;
@@ -1408,5 +1412,67 @@
     }
     .hdr-meta {
       display: none;
+    }
+    /* Stacked: let the step panel hug its content instead of a fixed height. */
+    .step-panel {
+      min-height: 0;
+      max-height: none;
+    }
+    .step-panel p {
+      flex: 0 0 auto;
+      overflow: visible;
+      max-width: none;
+    }
+  }
+
+  /* Phone widths: prevent horizontal overflow and reflow the controls. */
+  @media (max-width: 600px) {
+    .app {
+      padding: 12px;
+      gap: 12px;
+    }
+    .hdr {
+      padding: 14px 16px;
+      gap: 12px;
+    }
+    .brand-sub {
+      display: none;
+    }
+    .tabs {
+      flex: 1 1 auto;
+    }
+    .stage {
+      padding: 16px 12px;
+    }
+    .panel {
+      padding: 16px;
+    }
+    /* Timing panel title can wrap instead of forcing width. */
+    .panel-eyebrow,
+    .panel-title {
+      flex-wrap: wrap;
+      letter-spacing: 0.14em;
+    }
+    /* Transport: four buttons on one row, progress + counter stacked below. */
+    .transport {
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      padding: 12px;
+    }
+    .ctrl {
+      min-width: 0;
+      padding: 10px 4px;
+      letter-spacing: 0.08em;
+    }
+    .ctrl.primary {
+      min-width: 0;
+    }
+    .progress {
+      grid-column: 1 / -1;
+      margin: 4px 0;
+    }
+    .step-count {
+      grid-column: 1 / -1;
+      text-align: center;
     }
   }
