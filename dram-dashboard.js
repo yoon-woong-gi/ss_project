@@ -34,7 +34,9 @@
       vt: G_VCCVT,
       vcc: G_VCC,
       ref: G_VREF,
-      bump: G_VREF - 9, // small charge-sharing rise above Vcc/2
+      bump: G_VREF - 9, // small charge-sharing rise above Vdd/2
+      dip: G_VREF + 7, // small precharge dip below Vdd/2
+      settle: G_VCC + 6, // slight settle after the bit line first reaches Vdd
       gnd: G_GND,
     };
 
@@ -76,10 +78,14 @@
           dash: true,
           a: [
             [0, "ref"],
+            [0.03, "dip"],
+            [0.08, "ref"],
             [0.14, "ref"],
             [0.3, "bump"],
             [0.4, "bump"],
             [0.5, "vcc"],
+            [0.54, "settle"],
+            [0.58, "vcc"],
             [0.84, "vcc"],
             [0.9, "ref"],
             [1, "ref"],
@@ -134,9 +140,9 @@
         { key: "tRP", x0: 0.82, x1: 1.0, label: "tRP", row: 0 },
       ],
       levels: [
-        { y: G_VCCVT, label: "Vcc+Vt", dash: true },
-        { y: G_VCC, label: "Vcc", dash: true },
-        { y: G_VREF, label: "(Vref) Vcc/2", dash: false },
+        { y: G_VCCVT, label: "Vdd+Vt", dash: true },
+        { y: G_VCC, label: "Vdd", dash: true },
+        { y: G_VREF, label: "(Vref) Vdd/2", dash: false },
         { y: G_GND, label: "Gnd", dash: false },
       ],
     };
@@ -252,7 +258,7 @@
             title: { en: "Charge Sharing", ko: "전하 공유" },
             desc: {
               en: "Now we zoom into one cell. <code>BL</code> and <code>BL/</code> were both precharged to <code>Vdd/2</code>. With word line 3 on, the storage capacitor shares its charge with BL: a stored <code>1</code> pulls BL a little <em>above</em> Vdd/2, a stored <code>0</code> a little <em>below</em>. BL/ is left untouched at Vdd/2 as the reference.",
-              ko: "이제 셀 하나를 확대해서 보겠습니다. <code>BL</code>과 <code>BL/</code>은 둘 다 <code>Vdd/2</code>로 precharge된 상태입니다. Word line 3이 켜지면 셀 capacitor가 BL과 전하를 나눠 갖습니다 — 셀에 <code>1</code>이 들어 있으면 BL이 Vdd/2보다 살짝 <em>올라가고</em>, <code>0</code>이면 살짝 <em>내려갑니다</em>. BL/는 그대로 Vdd/2에 두고 비교 기준으로 씁니다.",
+              ko: "이제 셀 하나를 확대해서 보겠습니다. <code>BL</code>과 <code>BL/</code>은 둘 다 <code>Vdd/2</code>로 precharge된 상태입니다. Word line 3이 켜지면 셀 capacitor가 BL과 전하를 나눠 갖습니다. 셀에 <code>1</code>이 들어 있으면 BL이 Vdd/2보다 살짝 <em>올라가고</em>, <code>0</code>이면 살짝 <em>내려갑니다</em>. BL/는 그대로 Vdd/2에 두고 비교 기준으로 씁니다.",
             },
             state: {
               ...IDLE_STATE,
@@ -267,8 +273,8 @@
             op: { en: "SENSE · amplify", ko: "SENSE · 증폭" },
             title: { en: "Sense & Amplify", ko: "센싱 및 증폭" },
             desc: {
-              en: "The sense amp is a cross-coupled latch. It compares BL against the BL/ reference and amplifies that tiny gap — developing the higher line all the way up to <code>Vdd</code> and the lower one down to <code>0</code>. The stored bit is now a clean full-rail level. ACT to here is <code>tRCD</code>.",
-              ko: "Sense amp는 교차 결합(cross-coupled) 래치입니다. 기준선인 BL/와 BL을 맞대어 이 작은 차이를 크게 키웁니다 — 높은 쪽은 <code>Vdd</code>까지, 낮은 쪽은 <code>0</code>까지 develop합니다. 이제 비트가 확실한 레벨로 살아납니다. ACT부터 여기까지가 <code>tRCD</code>입니다.",
+              en: "The sense amp develops the two bit lines apart, driving the higher one up to <code>Vdd</code> and the lower one down to <code>0</code>. ACT to here is <code>tRCD</code>.",
+              ko: "Sense amp가 두 bit line을 서로 반대 방향으로 develop해, 높은 쪽은 <code>Vdd</code>로 낮은 쪽은 <code>0</code>으로 만듭니다. ACT부터 여기까지가 <code>tRCD</code>입니다.",
             },
             state: {
               ...IDLE_STATE,
@@ -285,8 +291,8 @@
             op: { en: "SENSE · restore", ko: "SENSE · 복원" },
             title: { en: "Restore", ko: "복원" },
             desc: {
-              en: "Sensing actually wrecks the stored value — sharing charge left the capacitor sitting near <code>Vdd/2</code>. But word line 3 is still on, so the now full-rail BL flows back through the transistor and tops the capacitor back up to its original value. The cell ends up exactly as it was, ready to be read again.",
-              ko: "사실 값을 읽는 순간 셀 값은 한 번 망가집니다 — 전하를 나누느라 capacitor가 <code>Vdd/2</code> 근처까지 떨어졌거든요. 하지만 word line 3이 아직 켜져 있어서, 완전한 레벨로 커진 BL이 transistor를 타고 다시 흘러 들어가 capacitor를 원래 값으로 채워 줍니다. 그래서 셀은 원래 상태로 되돌아오고, 다시 읽을 수 있습니다.",
+              en: "Reading is destructive. Charge sharing has already pulled the capacitor down toward <code>Vdd/2</code>, so the original value is gone. Because word line 3 is still on, the bit line, now driven to <code>Vdd</code> or <code>0</code>, flows back through the transistor and recharges the capacitor to its original value. The cell is restored and can be read again.",
+              ko: "읽고 나면 셀의 원래 값은 사라집니다. 전하 공유 과정에서 capacitor가 <code>Vdd/2</code> 부근까지 내려갔기 때문입니다. 다만 word line 3이 아직 켜져 있어, <code>Vdd</code> 또는 <code>0</code>으로 구동된 bit line이 transistor를 통해 다시 흘러 들어가 capacitor를 원래 값으로 재충전합니다. 이로써 셀이 원래 상태로 복원되어 다시 읽을 수 있습니다.",
             },
             state: {
               ...IDLE_STATE,
@@ -424,8 +430,8 @@
             op: { en: "ACT · row 0x3", ko: "ACT · row 0x3" },
             title: { en: "ACT — Row Activate", ko: "ACT — row 활성화" },
             desc: {
-              en: "The controller sends <code>ACTIVATE</code> with row <code>0x3</code>. Word line 3 rises and every transistor in the row turns on — exactly the same as a read. Activation is identical whether a read or a write follows.",
-              ko: "컨트롤러가 row <code>0x3</code>과 함께 <code>ACTIVATE</code>를 보냅니다. Word line 3이 올라가고 row의 모든 transistor가 켜집니다 — 읽기와 완전히 동일합니다. 활성화는 뒤에 읽기가 오든 쓰기가 오든 같습니다.",
+              en: "The controller sends <code>ACTIVATE</code> with row <code>0x3</code>. Word line 3 rises and every transistor in the row turns on, exactly the same as a read. Activation is identical whether a read or a write follows.",
+              ko: "컨트롤러가 row <code>0x3</code>과 함께 <code>ACTIVATE</code>를 보냅니다. Word line 3이 올라가고 row의 모든 transistor가 켜집니다. 읽기와 완전히 동일하며, 활성화는 뒤에 읽기가 오든 쓰기가 오든 같습니다.",
             },
             state: {
               ...IDLE_STATE,
@@ -439,8 +445,8 @@
             op: { en: "SENSE · row open", ko: "SENSE · row 열기" },
             title: { en: "Sense & Restore", ko: "센싱 및 복원" },
             desc: {
-              en: "Same physics as a read. With word line 3 on, <code>BL</code> develops from <code>Vdd/2</code> to a full rail and the sense amp latches — and restores — the cell's current value. Only once the cell is held open like this can its column be overwritten. ACT to here is <code>tRCD</code>.",
-              ko: "읽을 때와 똑같은 원리입니다. Word line 3이 켜진 상태에서 <code>BL</code>이 <code>Vdd/2</code>에서 완전한 레벨까지 develop되고, sense amp가 셀의 지금 값을 붙잡아(그리고 복원해) 둡니다. 이렇게 셀이 열린 채로 유지돼야 해당 column을 덮어쓸 수 있습니다. ACT부터 여기까지가 <code>tRCD</code>입니다.",
+              en: "Same physics as a read. With word line 3 on, <code>BL</code> develops from <code>Vdd/2</code> up to <code>Vdd</code> (or down to <code>0</code>), and the sense amp latches and restores the cell's current value. Only once the cell is held open like this can its column be overwritten. ACT to here is <code>tRCD</code>.",
+              ko: "읽을 때와 똑같은 원리입니다. Word line 3이 켜진 상태에서 <code>BL</code>이 <code>Vdd/2</code>에서 <code>Vdd</code>(또는 <code>0</code>)까지 develop되고, sense amp가 셀의 지금 값을 붙잡아 복원해 둡니다. 이렇게 셀이 열린 채로 유지돼야 해당 column을 덮어쓸 수 있습니다. ACT부터 여기까지가 <code>tRCD</code>입니다.",
             },
             state: {
               ...IDLE_STATE,
@@ -519,7 +525,7 @@
             op: { en: "tWR · recovery", ko: "tWR · 복구" },
             title: { en: "Write Recovery", ko: "쓰기 복구" },
             desc: {
-              en: "The cell needs a little time — <code>tWR</code> — to charge fully before the row can be closed. Closing too early risks losing the write.",
+              en: "The cell needs a little time (<code>tWR</code>) to charge fully before the row can be closed. Closing too early risks losing the write.",
               ko: "셀이 완전히 충전되려면 잠깐의 시간 <code>tWR</code>이 필요하며, 그 전에 row를 닫으면 쓰기를 잃을 수 있습니다.",
             },
             state: {
@@ -1156,44 +1162,50 @@
       wlLabel.textContent = "WL";
       gDetail.appendChild(wlLabel);
 
-      // Access transistor on BL (simple MOS-as-switch symbol)
+      // Access transistor — standard n-MOSFET symbol: WL drives the gate,
+      // source ties to BL, drain to the cell capacitor (as in the refs).
       detail.trans = el("g", { class: "d-trans" });
-      // source stub from BL, drain stub toward capacitor
+      const gX = 400; // transistor center
+      const gW = 13; // half-width of gate / channel
+      const gateY = 142; // gate electrode
+      const chanY = 148; // channel bar (top)
+      const railY = capTopY; // source/drain routing height
+      // gate stub from WL down to the gate electrode
       detail.trans.appendChild(
-        el("line", { x1: D_BL, y1: D_WL, x2: D_BL, y2: D_WL, class: "d-wire" }),
+        el("line", { x1: gX, y1: D_WL, x2: gX, y2: gateY, class: "d-wire" }),
       );
-      // horizontal channel from BL to cap node
-      detail.trans.appendChild(
-        el("line", {
-          x1: D_BL,
-          y1: capTopY,
-          x2: 420,
-          y2: capTopY,
-          class: "d-wire",
-        }),
-      );
-      // gate bar (driven by WL)
+      // gate electrode bar (driven by WL)
       detail.transGate = el("line", {
-        x1: 406,
-        y1: capTopY - 14,
-        x2: 406,
-        y2: capTopY + 14,
+        x1: gX - gW,
+        y1: gateY,
+        x2: gX + gW,
+        y2: gateY,
         class: "d-gate",
       });
-      // gate stub up to WL
-      detail.trans.appendChild(
-        el("line", { x1: 406, y1: D_WL, x2: 406, y2: capTopY - 14, class: "d-wire" }),
-      );
-      // channel break to show the switch
+      // channel / body (fills when the transistor turns on)
       detail.channel = el("rect", {
-        x: 411,
-        y: capTopY - 9,
-        width: 9,
-        height: 18,
+        x: gX - gW,
+        y: chanY,
+        width: gW * 2,
+        height: 8,
         class: "d-channel",
       });
       detail.trans.appendChild(detail.channel);
       detail.trans.appendChild(detail.transGate);
+      // source: down from channel, then across to BL
+      detail.trans.appendChild(
+        el("line", { x1: gX - gW, y1: chanY + 8, x2: gX - gW, y2: railY, class: "d-wire" }),
+      );
+      detail.trans.appendChild(
+        el("line", { x1: gX - gW, y1: railY, x2: D_BL, y2: railY, class: "d-wire" }),
+      );
+      // drain: down from channel, then across to the capacitor
+      detail.trans.appendChild(
+        el("line", { x1: gX + gW, y1: chanY + 8, x2: gX + gW, y2: railY, class: "d-wire" }),
+      );
+      detail.trans.appendChild(
+        el("line", { x1: gX + gW, y1: railY, x2: 420, y2: railY, class: "d-wire" }),
+      );
       gDetail.appendChild(detail.trans);
 
       // Capacitor Cc + Vcp
