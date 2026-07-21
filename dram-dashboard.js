@@ -214,6 +214,7 @@
             value: { en: "8 beats", ko: "8 비트" },
             desc: { en: "burst length", ko: "burst 길이" },
             key: null,
+            termKey: "BL8",
           },
           {
             name: "tRAS",
@@ -390,6 +391,7 @@
             value: { en: "8 beats", ko: "8 비트" },
             desc: { en: "burst length", ko: "burst 길이" },
             key: null,
+            termKey: "BL8",
           },
           {
             name: "tWR",
@@ -700,9 +702,9 @@
         ko: "WR 명령부터 컨트롤러가 DQ에 첫 데이터를 실어 보낼 때까지의 클록 사이클 수. DDR4-3200 JEDEC 표준 CWL16.",
       },
       BL: {
-        name: "BL · Burst Length",
-        en: "Number of data beats transferred per column command. Modern SDRAM uses BL8 — eight beats over four clock cycles (two per cycle, one per edge).",
-        ko: "Column 명령당 전송되는 데이터 비트 수. 최신 SDRAM은 BL8 사용 — 4 클록 사이클 동안 8 비트 (사이클당 2, 엣지당 1).",
+        name: "BL · Bit Line",
+        en: "The bit line — the vertical wire running down a column, connecting every cell's storage capacitor (through its access transistor) to the sense amp at the bottom. Held at Vdd/2 while idle; charge sharing with an accessed cell nudges it slightly above or below that level depending on the stored bit. BL/ is its complementary reference line, held at Vdd/2 for the sense amp to compare against.",
+        ko: "Bit line — column을 따라 내려가며 각 셀의 저장 커패시터를 access transistor를 통해 하단의 sense amp에 연결하는 배선입니다. Idle 상태에서는 Vdd/2로 유지되고, 접근된 셀과 전하를 나누면 저장된 값에 따라 그보다 살짝 위 또는 아래로 움직입니다. BL/는 상보(reference) 라인으로, sense amp가 비교할 수 있도록 Vdd/2로 유지됩니다.",
       },
       BL8: {
         name: "BL8 · Burst Length 8",
@@ -1774,9 +1776,10 @@
         const isHi = st.highlightTiming === row.key;
         const dt = document.createElement("dt");
         dt.textContent = row.name;
-        if (TERM_DEFS[row.name]) {
+        const termKey = row.termKey || row.name;
+        if (TERM_DEFS[termKey]) {
           dt.classList.add("term");
-          dt.dataset.term = row.name;
+          dt.dataset.term = termKey;
           dt.tabIndex = 0;
         }
         const dd = document.createElement("dd");
